@@ -248,7 +248,7 @@ export function StudentsList() {
       />
 
       {/* Summary KPI Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -277,7 +277,7 @@ export function StudentsList() {
           </div>
         </div>
 
-        <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
+        {/* <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               Pending Verification
@@ -289,7 +289,7 @@ export function StudentsList() {
           <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600">
             <FiClock className="w-4 h-4" />
           </div>
-        </div>
+        </div> */}
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>

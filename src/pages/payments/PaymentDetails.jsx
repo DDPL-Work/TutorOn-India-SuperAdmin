@@ -92,7 +92,7 @@ export function PaymentDetails() {
       {/* Top Header & Breadcrumb Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1 border-b border-slate-200">
         <div className="space-y-1.5">
-          <nav aria-label="Breadcrumb" className="flex items-center text-xs">
+          <nav aria-label="Breadcrumb" className="hidden sm:flex items-center text-xs">
             <ol className="flex items-center gap-1.5 text-slate-500 flex-wrap">
               <li>
                 <Link to="/dashboard" className="hover:text-[#123B66] hover:underline font-medium">

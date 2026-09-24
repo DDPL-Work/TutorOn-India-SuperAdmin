@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiAlertTriangle,
@@ -6,10 +6,13 @@ import {
   FiX,
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
+import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Avatar from '../../components/ui/Avatar';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
@@ -20,6 +23,7 @@ export function ReportsList() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [reports, setReports] = useState(INITIAL_REPORTS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,95 +115,75 @@ export function ReportsList() {
   // Columns definition
   const columns = [
     {
-      key: 'id',
-      header: 'Report ID',
-      className: 'w-32 font-mono text-xs font-semibold text-[#123B66]',
-      render: (row) => (
-        <button
-          type="button"
-          onClick={() => navigate(`/reports/${row.id}`)}
-          className="hover:underline hover:text-[#1D4ED8] cursor-pointer text-left font-mono font-medium text-xs flex items-center gap-1.5"
-        >
-          <FiAlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          {row.id}
-        </button>
-      ),
-    },
-    {
-      key: 'reportedBy',
-      header: 'Reported By',
-      render: (row) => (
-        <div className="text-xs">
-          <span className="font-semibold text-slate-900 block">{row.reportedBy.name}</span>
-          <span className="text-[10px] text-slate-400 font-mono">
-            {row.reportedBy.id} • {row.reportedBy.role}
-          </span>
-        </div>
-      ),
-    },
-    {
       key: 'reportedUser',
-      header: 'Reported User',
+      header: 'Reported User & ID',
       render: (row) => (
-        <div className="flex items-center gap-2.5">
-          <img
-            src={row.reportedUser.avatar}
-            alt={row.reportedUser.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
+        <div className="flex items-center gap-3">
+          <Avatar name={row.reportedUser.name} src={row.reportedUser.avatar} size="sm" />
           <div className="min-w-0">
-            <span className="text-xs font-semibold text-slate-900 truncate block">
+            <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight truncate">
               {row.reportedUser.name}
-            </span>
-            <span className="text-[10px] text-slate-400 block font-mono">
-              {row.reportedUser.id} • {row.reportedUser.role}
-            </span>
+            </p>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+              <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
+                {row.id}
+              </span>
+              <span>{row.reportedUser.role}</span>
+            </div>
           </div>
         </div>
       ),
     },
     {
-      key: 'category',
-      header: 'Category',
+      key: 'reportedBy',
+      header: 'Filed By',
       render: (row) => (
-        <span
-          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-            row.category === 'Privacy'
-              ? 'bg-red-50 text-red-700 border border-red-200'
-              : row.category === 'Abuse'
-              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-              : row.category === 'Harassment'
-              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-              : 'bg-slate-100 text-slate-700 border border-slate-200'
-          }`}
-        >
-          {row.category}
-        </span>
+        <div className="text-xs text-slate-700">
+          <span className="font-medium text-slate-900 block">{row.reportedBy.name}</span>
+          <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+            {row.reportedBy.role}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category & Priority',
+      render: (row) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+              row.category === 'Privacy'
+                ? 'bg-red-50 text-red-700 border border-red-200'
+                : row.category === 'Abuse'
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : row.category === 'Harassment'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : 'bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+          >
+            {row.category}
+          </span>
+          <Badge
+            variant={
+              row.priority === 'Critical' || row.priority === 'High'
+                ? 'danger'
+                : row.priority === 'Medium'
+                ? 'warning'
+                : 'slate'
+            }
+            size="sm"
+          >
+            {row.priority}
+          </Badge>
+        </div>
       ),
     },
     {
       key: 'date',
       header: 'Date',
-      className: 'text-xs text-slate-600 whitespace-nowrap',
+      className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
       render: (row) => row.date,
-    },
-    {
-      key: 'priority',
-      header: 'Priority',
-      render: (row) => (
-        <Badge
-          variant={
-            row.priority === 'Critical' || row.priority === 'High'
-              ? 'danger'
-              : row.priority === 'Medium'
-              ? 'warning'
-              : 'slate'
-          }
-          size="sm"
-        >
-          {row.priority}
-        </Badge>
-      ),
     },
     {
       key: 'status',
@@ -209,29 +193,31 @@ export function ReportsList() {
     {
       key: 'action',
       header: 'Action',
-      className: 'text-right',
+      className: 'text-right whitespace-nowrap',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.status === 'Open' && (
+            <button
+              type="button"
+              onClick={(e) => handleQuickResolve(row, e)}
+              className="text-[11px] font-medium px-2 py-1 rounded-md text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+            >
+              Resolve
+            </button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate(`/reports/${row.id}`)}
             leftIcon={<FiEye className="w-3.5 h-3.5" />}
-            className="h-7 text-xs px-2"
+            className="h-7 text-xs px-2.5"
           >
             Investigate
           </Button>
-
-          {row.status === 'Open' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => handleQuickResolve(row, e)}
-              className="h-7 text-xs px-2 text-emerald-700 hover:bg-emerald-50"
-            >
-              Resolve
-            </Button>
-          )}
         </div>
       ),
     },
@@ -287,117 +273,101 @@ export function ReportsList() {
       </div>
 
       {/* Toolbar: Search and Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 max-w-md">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => {
-                setSearchQuery(val);
-                setCurrentPage(1);
-              }}
-              placeholder="Search report ID, complainant, accused user, or text..."
-              className="w-full"
-            />
+      <FilterBar
+        isFiltered={
+          searchQuery !== '' ||
+          categoryFilter !== 'ALL' ||
+          priorityFilter !== 'ALL' ||
+          activeTab !== 'all'
+        }
+        activeFilterCount={
+          (searchQuery ? 1 : 0) +
+          (categoryFilter !== 'ALL' ? 1 : 0) +
+          (priorityFilter !== 'ALL' ? 1 : 0) +
+          (activeTab !== 'all' ? 1 : 0)
+        }
+        onReset={() => {
+          setSearchQuery('');
+          setCategoryFilter('ALL');
+          setPriorityFilter('ALL');
+          setActiveTab('all');
+          setCurrentPage(1);
+        }}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-slate-500">Category:</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Categories</option>
-              <option value="Privacy">Privacy Violation</option>
-              <option value="Abuse">Abuse & Vulgarity</option>
-              <option value="Harassment">Harassment</option>
-              <option value="Spam">Spam</option>
-              <option value="Other">Other Dispute</option>
-            </select>
-
-            <span className="text-xs text-slate-500 ml-2">Priority:</span>
-            <select
-              value={priorityFilter}
-              onChange={(e) => {
-                setPriorityFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Priorities</option>
-              <option value="Critical">Critical</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
-          </div>
+        }
+      >
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            onClear={() => setSearchQuery('')}
+            placeholder="Search report ID, user, text..."
+            size="sm"
+          />
         </div>
 
-        {/* Applied filters indicator */}
-        {(searchQuery || categoryFilter !== 'ALL' || priorityFilter !== 'ALL' || activeTab !== 'all') && (
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-            <span>Filtering by:</span>
-            {activeTab !== 'all' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Tab: {tabs.find((t) => t.key === activeTab)?.label}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('all')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {categoryFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Category: {categoryFilter}
-                <button
-                  type="button"
-                  onClick={() => setCategoryFilter('ALL')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Search: &quot;{searchQuery}&quot;
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('all');
-                setCategoryFilter('ALL');
-                setPriorityFilter('ALL');
-                setSearchQuery('');
-              }}
-              className="text-[#1D4ED8] hover:underline text-[11px] ml-auto font-medium cursor-pointer"
-            >
-              Reset all
-            </button>
-          </div>
-        )}
-      </div>
+        <div className="w-32 sm:w-36 shrink-0">
+          <select
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Categories</option>
+            <option value="Privacy">Privacy</option>
+            <option value="Abuse">Abuse & Vulgarity</option>
+            <option value="Harassment">Harassment</option>
+            <option value="Spam">Spam</option>
+            <option value="Other">Other Dispute</option>
+          </select>
+        </div>
+
+        <div className="w-32 sm:w-36 shrink-0">
+          <select
+            value={priorityFilter}
+            onChange={(e) => {
+              setPriorityFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Priorities</option>
+            <option value="Critical">Critical</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Reports Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredReports.length > 0 ? (
           <>
-            <DataTable columns={columns} data={paginatedReports} className="border-none" />
+            <DataTable ref={tableRef} columns={columns} data={paginatedReports} className="border-none" />
             <div className="p-4 border-t border-slate-200">
               <Pagination
                 currentPage={currentPage}

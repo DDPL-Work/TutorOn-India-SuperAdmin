@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FiCheckCircle,
@@ -11,10 +11,13 @@ import {
   FiAlertCircle,
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
+import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Avatar from '../../components/ui/Avatar';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
@@ -27,6 +30,7 @@ export function EnrollmentsList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [enrollments, setEnrollments] = useState(INITIAL_ENROLLMENTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
@@ -227,42 +231,20 @@ export function EnrollmentsList() {
   // Table Columns
   const columns = [
     {
-      key: 'id',
-      header: 'Enrollment ID',
-      className: 'w-36 font-mono text-xs font-semibold text-[#123B66]',
-      render: (row) => (
-        <button
-          type="button"
-          onClick={() => navigate(`/enrollments/${row.id}`)}
-          className="hover:underline hover:text-[#1D4ED8] cursor-pointer text-left font-mono font-medium text-xs flex items-center gap-1.5"
-        >
-          <FiBookOpen className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          {row.id}
-        </button>
-      ),
-    },
-    {
       key: 'student',
-      header: 'Student',
+      header: 'Student & ID',
       render: (row) => (
-        <div className="flex items-center gap-3">
-          <img
-            src={row.student.avatar}
-            alt={row.student.name}
-            className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
-          />
-          <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate(`/students/${row.student.id}`)}
-              className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline truncate block text-left"
-            >
+        <div className="flex items-center gap-3 whitespace-nowrap">
+          <Avatar name={row.student.name} src={row.student.avatar} size="sm" />
+          <div>
+            <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
               {row.student.name}
-            </button>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            </p>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+              <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
+                {row.id}
+              </span>
               <span>{row.student.grade}</span>
-              <span>•</span>
-              <span className="font-mono text-[10px] text-slate-400">{row.student.id}</span>
             </div>
           </div>
         </div>
@@ -270,16 +252,16 @@ export function EnrollmentsList() {
     },
     {
       key: 'batch',
-      header: 'Batch',
+      header: 'Batch & Subject',
       render: (row) => (
-        <div className="max-w-[220px]">
-          <div className="text-xs font-medium text-slate-900 truncate" title={row.batch.title}>
+        <div className="min-w-[190px] max-w-[250px]">
+          <div className="text-xs font-medium text-slate-900" title={row.batch.title}>
             {row.batch.title}
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
             <span className="font-mono text-[10px] text-slate-400">{row.batch.batchCode}</span>
             <span>•</span>
-            <span>{row.batch.fee}</span>
+            <span className="font-semibold text-slate-700">{row.batch.fee}</span>
           </div>
         </div>
       ),
@@ -288,88 +270,84 @@ export function EnrollmentsList() {
       key: 'teacher',
       header: 'Teacher',
       render: (row) => (
-        <div className="flex items-center gap-2.5">
-          <img
-            src={row.teacher.avatar}
-            alt={row.teacher.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
-          <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate(`/teachers/${row.teacher.id}`)}
-              className="text-xs font-medium text-slate-900 hover:text-[#123B66] hover:underline truncate block text-left"
-            >
+        <div className="flex items-center gap-2.5 whitespace-nowrap min-w-[130px]">
+          <Avatar name={row.teacher.name} src={row.teacher.avatar} size="xs" />
+          <div>
+            <p className="text-xs font-medium text-slate-900">
               {row.teacher.name}
-            </button>
-            <span className="text-[10px] text-slate-500 block truncate">{row.batch.subject}</span>
+            </p>
+            <span className="text-[10px] text-slate-500 block">{row.batch.subject}</span>
           </div>
         </div>
       ),
     },
     {
       key: 'requestDate',
-      header: 'Request Date',
-      className: 'text-xs text-slate-600 whitespace-nowrap',
+      header: 'Date',
+      className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
       render: (row) => row.requestDate,
     },
     {
-      key: 'paymentStatus',
-      header: 'Payment Status',
-      render: (row) => <StatusBadge status={row.paymentStatus} />,
-    },
-    {
       key: 'status',
-      header: 'Enrollment Status',
-      render: (row) => <StatusBadge status={row.status} />,
+      header: 'Status & Payment',
+      render: (row) => (
+        <div className="space-y-1">
+          <StatusBadge status={row.status} />
+          <div>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded font-medium border inline-block ${
+                row.paymentStatus === 'Paid'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}
+            >
+              {row.paymentStatus}
+            </span>
+          </div>
+        </div>
+      ),
     },
     {
       key: 'actions',
-      header: 'Actions',
-      className: 'text-right',
+      header: 'Action',
+      className: 'text-right whitespace-nowrap',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.status === 'Awaiting Confirmation' && (
+            <div className="flex items-center gap-1 mr-1">
+              <button
+                type="button"
+                onClick={() => handleOpenConfirmModal(row)}
+                className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
+                title="Confirm Enrollment"
+                aria-label="Confirm"
+              >
+                <FiCheck className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenRejectModal(row)}
+                className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+                title="Reject Enrollment"
+                aria-label="Reject"
+              >
+                <FiX className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate(`/enrollments/${row.id}`)}
             leftIcon={<FiEye className="w-3.5 h-3.5" />}
-            className="h-7 text-xs px-2"
+            className="h-7 text-xs px-2.5"
           >
-            View
+            Review
           </Button>
-
-          {row.status === 'Awaiting Confirmation' && (
-            <>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => handleOpenConfirmModal(row)}
-                className="h-7 text-xs px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                Confirm
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenRejectModal(row)}
-                className="h-7 text-xs px-2 text-red-600 hover:bg-red-50 hover:border-red-300"
-              >
-                Reject
-              </Button>
-            </>
-          )}
-
-          {row.status === 'Pending' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOpenConfirmModal(row)}
-              className="h-7 text-xs px-2.5 text-blue-700 hover:bg-blue-50"
-            >
-              Authorize
-            </Button>
-          )}
         </div>
       ),
     },
@@ -424,101 +402,74 @@ export function EnrollmentsList() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 max-w-md">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => {
-                setSearchQuery(val);
-                setCurrentPage(1);
-              }}
-              placeholder="Search by student, teacher, batch, or enrollment ID..."
-              className="w-full"
-            />
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <FiCreditCard className="w-3.5 h-3.5 text-slate-400" />
-              <span>Payment:</span>
+      <FilterBar
+        isFiltered={searchQuery !== '' || paymentFilter !== 'ALL' || activeTab !== 'all'}
+        activeFilterCount={
+          (searchQuery ? 1 : 0) + (paymentFilter !== 'ALL' ? 1 : 0) + (activeTab !== 'all' ? 1 : 0)
+        }
+        onReset={() => {
+          setSearchQuery('');
+          setPaymentFilter('ALL');
+          setActiveTab('all');
+          setCurrentPage(1);
+        }}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
             </div>
-            <select
-              value={paymentFilter}
-              onChange={(e) => {
-                setPaymentFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Payment Statuses</option>
-              <option value="Paid">Paid</option>
-              <option value="Payment Pending">Payment Pending</option>
-              <option value="Failed">Failed</option>
-            </select>
+            <TableScrollButtons targetRef={tableRef} />
           </div>
+        }
+      >
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            onClear={() => setSearchQuery('')}
+            placeholder="Search student, teacher, batch..."
+            size="sm"
+          />
         </div>
 
-        {/* Applied filters indicator */}
-        {(searchQuery || paymentFilter !== 'ALL' || activeTab !== 'all') && (
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-            <span>Filtering by:</span>
-            {activeTab !== 'all' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Tab: {tabs.find((t) => t.key === activeTab)?.label}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('all')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {paymentFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Payment: {paymentFilter}
-                <button
-                  type="button"
-                  onClick={() => setPaymentFilter('ALL')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Search: &quot;{searchQuery}&quot;
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('all');
-                setPaymentFilter('ALL');
-                setSearchQuery('');
-              }}
-              className="text-[#1D4ED8] hover:underline text-[11px] ml-auto font-medium cursor-pointer"
-            >
-              Reset all
-            </button>
-          </div>
-        )}
-      </div>
+        <div className="w-36 sm:w-40 shrink-0">
+          <select
+            value={paymentFilter}
+            onChange={(e) => {
+              setPaymentFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Payment Statuses</option>
+            <option value="Paid">Paid</option>
+            <option value="Payment Pending">Payment Pending</option>
+            <option value="Failed">Failed</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Enrollments Data Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredEnrollments.length > 0 ? (
           <>
             <DataTable
+              ref={tableRef}
               columns={columns}
               data={paginatedEnrollments}
               className="border-none"

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FiUserCheck,
@@ -17,6 +17,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
 import SearchBar from '../../components/ui/SearchBar';
 import FilterBar from '../../components/ui/FilterBar';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
@@ -31,6 +32,7 @@ export function TeachersList({ defaultTab = null }) {
   const toast = useToast();
   const [searchParams] = useSearchParams();
 
+  const tableRef = useRef(null);
   const [teachers, setTeachers] = useState(INITIAL_TEACHERS);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -290,8 +292,28 @@ export function TeachersList({ defaultTab = null }) {
         isFiltered={searchTerm !== ''}
         activeFilterCount={searchTerm !== '' ? 1 : 0}
         onReset={() => setSearchTerm('')}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
+          </div>
+        }
       >
-        <div className="w-full sm:w-80">
+        <div className="w-48 sm:w-60 md:w-72 flex-1 min-w-[140px] max-w-sm">
           <SearchBar
             value={searchTerm}
             onChange={(val) => {
@@ -303,40 +325,21 @@ export function TeachersList({ defaultTab = null }) {
             size="sm"
           />
         </div>
-
-        <div className="flex items-center gap-1.5 ml-auto text-xs text-slate-500">
-          <span>Rows:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-          </select>
-        </div>
       </FilterBar>
 
       {/* Teachers Data Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden">
         {paginatedTeachers.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div ref={tableRef} className="overflow-x-auto scroll-smooth">
+            <table className="w-full min-w-[980px] text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Teacher</th>
-                  <th className="py-3 px-4">Qualification</th>
-                  <th className="py-3 px-4">Subjects</th>
-                  <th className="py-3 px-4">Experience</th>
-                  <th className="py-3 px-4">Languages</th>
-                  <th className="py-3 px-4 text-center">Rating</th>
-                  <th className="py-3 px-4 text-center">Students Taught</th>
-                  <th className="py-3 px-4">Verification Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Teacher</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Qualification & Subjects</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Experience & Languages</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Rating & Learners</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Status</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -346,10 +349,10 @@ export function TeachersList({ defaultTab = null }) {
                     className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                     onClick={() => navigate(`/teachers/${teacher.id}`)}
                   >
-                    {/* Teacher Info */}
-                    <td className="py-3.5 px-4">
+                    {/* Teacher Info with Circular Avatar */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <Avatar name={teacher.name} size="md" />
+                        <Avatar name={teacher.name} size="sm" />
                         <div>
                           <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
                             {teacher.name}
@@ -364,53 +367,51 @@ export function TeachersList({ defaultTab = null }) {
                       </div>
                     </td>
 
-                    {/* Qualification */}
-                    <td className="py-3.5 px-4 max-w-[200px]">
-                      <p className="font-medium text-slate-800 truncate" title={teacher.qualification}>
-                        {teacher.qualification}
-                      </p>
-                    </td>
-
-                    {/* Subjects */}
+                    {/* Qualification & Subjects */}
                     <td className="py-3.5 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-[170px]">
-                        {teacher.subjects.map((sub, i) => (
-                          <span
-                            key={i}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-[#123B66] border border-blue-100"
-                          >
-                            {sub}
-                          </span>
-                        ))}
+                      <div className="min-w-[200px] max-w-[260px]">
+                        <p className="font-medium text-slate-800 text-[11px]" title={teacher.qualification}>
+                          {teacher.qualification}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {teacher.subjects.slice(0, 2).map((sub, i) => (
+                            <span
+                              key={i}
+                              className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 text-[#123B66] border border-blue-100 whitespace-nowrap"
+                            >
+                              {sub}
+                            </span>
+                          ))}
+                          {teacher.subjects.length > 2 && (
+                            <span className="px-1 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                              +{teacher.subjects.length - 2}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 
-                    {/* Experience */}
-                    <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
-                      {teacher.experience}
-                    </td>
-
-                    {/* Languages */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
-                        {teacher.languages.join(', ')}
+                    {/* Experience & Languages */}
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <div className="min-w-[180px] max-w-[240px]">
+                        <p className="font-medium text-slate-800 text-[11px]" title={teacher.experience}>
+                          {teacher.experience}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5" title={teacher.languages.join(', ')}>
+                          {teacher.languages.join(', ')}
+                        </p>
                       </div>
                     </td>
 
-                    {/* Rating */}
+                    {/* Rating & Students */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1 font-bold text-slate-900 font-mono">
+                      <div className="inline-flex items-center gap-1 font-bold text-slate-900 font-mono text-[11px]">
                         <FiStar className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                         <span>{teacher.rating.toFixed(2)}</span>
                       </div>
-                      <span className="block text-[10px] text-slate-400 font-mono">
-                        ({teacher.ratingCount})
+                      <span className="block text-[10px] text-slate-500 font-mono mt-0.5">
+                        {teacher.studentsTaught.toLocaleString('en-IN')} learners
                       </span>
-                    </td>
-
-                    {/* Students Taught */}
-                    <td className="py-3.5 px-4 text-center font-mono font-medium text-slate-800 whitespace-nowrap">
-                      {teacher.studentsTaught.toLocaleString('en-IN')}
                     </td>
 
                     {/* Verification Status */}
@@ -418,44 +419,44 @@ export function TeachersList({ defaultTab = null }) {
                       <StatusBadge status={teacher.verificationStatus} />
                     </td>
 
-                    {/* Actions */}
+                    {/* Actions & Buttons */}
                     <td
                       className="py-3.5 px-4 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
-                          onClick={() => navigate(`/teachers/${teacher.id}`)}
-                          className="h-7 text-xs px-2"
-                        >
-                          View
-                        </Button>
-
+                      <div className="flex items-center justify-end gap-2">
                         {teacher.verificationStatus === 'Pending Verification' && (
-                          <>
+                          <div className="flex items-center gap-1 mr-1">
                             <button
                               type="button"
                               onClick={() => openApproveModal(teacher)}
-                              className="p-1 rounded text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
                               title="Verify Teacher"
                               aria-label="Approve and verify"
                             >
-                              <FiCheck className="w-4 h-4" />
+                              <FiCheck className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => openRejectModal(teacher)}
-                              className="p-1 rounded text-danger hover:bg-red-50 transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
                               title="Reject Verification"
                               aria-label="Reject verification"
                             >
-                              <FiX className="w-4 h-4" />
+                              <FiX className="w-3.5 h-3.5" />
                             </button>
-                          </>
+                          </div>
                         )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/teachers/${teacher.id}`)}
+                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
+                          className="h-7 text-xs px-2.5"
+                        >
+                          View Dossier
+                        </Button>
                       </div>
                     </td>
                   </tr>

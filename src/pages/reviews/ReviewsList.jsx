@@ -1,15 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiStar,
   FiTrash2,
   FiX,
+  FiCheck,
+  FiEye,
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
+import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Avatar from '../../components/ui/Avatar';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
@@ -21,6 +26,7 @@ export function ReviewsList() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,21 +181,13 @@ export function ReviewsList() {
       key: 'reviewer',
       header: 'Reviewer',
       render: (row) => (
-        <div className="flex items-center gap-2.5">
-          <img
-            src={row.reviewer.avatar}
-            alt={row.reviewer.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
+        <div className="flex items-center gap-3">
+          <Avatar name={row.reviewer.name} src={row.reviewer.avatar} size="sm" />
           <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate(`/students/${row.reviewer.id}`)}
-              className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline truncate block text-left"
-            >
+            <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
               {row.reviewer.name}
-            </button>
-            <span className="text-[10px] text-slate-400 block">{row.reviewer.grade}</span>
+            </p>
+            <span className="text-[11px] text-slate-500 block mt-0.5">{row.reviewer.grade}</span>
           </div>
         </div>
       ),
@@ -199,20 +197,12 @@ export function ReviewsList() {
       header: 'Teacher',
       render: (row) => (
         <div className="flex items-center gap-2.5">
-          <img
-            src={row.teacher.avatar}
-            alt={row.teacher.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
+          <Avatar name={row.teacher.name} src={row.teacher.avatar} size="xs" />
           <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate(`/teachers/${row.teacher.id}`)}
-              className="text-xs font-medium text-slate-900 hover:text-[#123B66] hover:underline truncate block text-left"
-            >
+            <p className="text-xs font-medium text-slate-900 truncate">
               {row.teacher.name}
-            </button>
-            <span className="text-[10px] text-slate-400 block">{row.teacher.subject}</span>
+            </p>
+            <span className="text-[10px] text-slate-500 block truncate">{row.teacher.subject}</span>
           </div>
         </div>
       ),
@@ -224,9 +214,9 @@ export function ReviewsList() {
     },
     {
       key: 'review',
-      header: 'Review',
+      header: 'Feedback',
       render: (row) => (
-        <div className="max-w-[280px]">
+        <div className="max-w-[260px]">
           <p
             onClick={() => setDetailModal({ isOpen: true, review: row })}
             className="text-xs text-slate-800 line-clamp-2 hover:text-[#123B66] cursor-pointer"
@@ -241,7 +231,7 @@ export function ReviewsList() {
     {
       key: 'date',
       header: 'Date',
-      className: 'text-xs text-slate-600 whitespace-nowrap',
+      className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
       render: (row) => row.date,
     },
     {
@@ -251,60 +241,45 @@ export function ReviewsList() {
     },
     {
       key: 'actions',
-      header: 'Actions',
-      className: 'text-right',
+      header: 'Action',
+      className: 'text-right whitespace-nowrap',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.status === 'Flagged' ? (
+            <div className="flex items-center gap-1 mr-1">
+              <button
+                type="button"
+                onClick={() => handleKeepReview(row)}
+                className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
+                title="Keep Review"
+                aria-label="Keep Review"
+              >
+                <FiCheck className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenRemoveModal(row)}
+                className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+                title="Remove Review"
+                aria-label="Remove Review"
+              >
+                <FiX className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : null}
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => setDetailModal({ isOpen: true, review: row })}
-            className="h-7 text-xs px-2"
+            leftIcon={<FiEye className="w-3.5 h-3.5" />}
+            className="h-7 text-xs px-2.5"
           >
-            View
+            Inspect
           </Button>
-
-          {row.status === 'Flagged' ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleKeepReview(row)}
-                className="h-7 text-xs px-2 text-emerald-700 hover:bg-emerald-50"
-                title="Keep Review"
-              >
-                Keep
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenRemoveModal(row)}
-                className="h-7 text-xs px-2 text-red-600 hover:bg-red-50 hover:border-red-300"
-                title="Remove Review"
-              >
-                Remove
-              </Button>
-            </>
-          ) : row.status === 'Published' ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOpenRemoveModal(row)}
-              className="h-7 text-xs px-2 text-red-600 hover:bg-red-50 hover:border-red-300"
-              title="Remove Review"
-            >
-              Remove
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleKeepReview(row)}
-              className="h-7 text-xs px-2 text-emerald-700 hover:bg-emerald-50"
-            >
-              Restore
-            </Button>
-          )}
         </div>
       ),
     },
@@ -360,100 +335,75 @@ export function ReviewsList() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 max-w-md">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => {
-                setSearchQuery(val);
-                setCurrentPage(1);
-              }}
-              placeholder="Search reviewer, teacher, batch, or review snippet..."
-              className="w-full"
-            />
+      <FilterBar
+        isFiltered={searchQuery !== '' || ratingFilter !== 'ALL' || activeTab !== 'all'}
+        activeFilterCount={
+          (searchQuery ? 1 : 0) + (ratingFilter !== 'ALL' ? 1 : 0) + (activeTab !== 'all' ? 1 : 0)
+        }
+        onReset={() => {
+          setSearchQuery('');
+          setRatingFilter('ALL');
+          setActiveTab('all');
+          setCurrentPage(1);
+        }}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-slate-500">Rating Score:</span>
-            <select
-              value={ratingFilter}
-              onChange={(e) => {
-                setRatingFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Star Ratings</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
-            </select>
-          </div>
+        }
+      >
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            onClear={() => setSearchQuery('')}
+            placeholder="Search reviewer, teacher, batch..."
+            size="sm"
+          />
         </div>
 
-        {/* Applied filters bar */}
-        {(searchQuery || ratingFilter !== 'ALL' || activeTab !== 'all') && (
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-            <span>Filtering by:</span>
-            {activeTab !== 'all' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Tab: {tabs.find((t) => t.key === activeTab)?.label}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('all')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {ratingFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Rating: {ratingFilter} Stars
-                <button
-                  type="button"
-                  onClick={() => setRatingFilter('ALL')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Search: &quot;{searchQuery}&quot;
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('all');
-                setRatingFilter('ALL');
-                setSearchQuery('');
-              }}
-              className="text-[#1D4ED8] hover:underline text-[11px] ml-auto font-medium cursor-pointer"
-            >
-              Reset all
-            </button>
-          </div>
-        )}
-      </div>
+        <div className="w-36 sm:w-40 shrink-0">
+          <select
+            value={ratingFilter}
+            onChange={(e) => {
+              setRatingFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Star Ratings</option>
+            <option value="5">5 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="3">3 Stars</option>
+            <option value="2">2 Stars</option>
+            <option value="1">1 Star</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Reviews Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredReviews.length > 0 ? (
           <>
-            <DataTable columns={columns} data={paginatedReviews} className="border-none" />
+            <DataTable ref={tableRef} columns={columns} data={paginatedReviews} className="border-none" />
             <div className="p-4 border-t border-slate-200">
               <Pagination
                 currentPage={currentPage}

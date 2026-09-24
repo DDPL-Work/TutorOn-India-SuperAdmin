@@ -1,18 +1,23 @@
+import { forwardRef } from 'react';
 import { cn } from '../../utils/cn';
 import Skeleton from './Skeleton';
 
-export function DataTable({
-  columns = [],
-  data = [],
-  className = '',
-  onRowClick = null,
-  isLoading = false,
-  loadingRows = 5,
-  emptyState = null,
-}) {
+export const DataTable = forwardRef(function DataTable(
+  {
+    columns = [],
+    data = [],
+    className = '',
+    tableClassName = 'min-w-[950px]',
+    onRowClick = null,
+    isLoading = false,
+    loadingRows = 5,
+    emptyState = null,
+  },
+  ref
+) {
   return (
-    <div className={cn('overflow-x-auto w-full', className)}>
-      <table className="w-full text-left text-xs border-collapse">
+    <div ref={ref} className={cn('overflow-x-auto w-full scroll-smooth', className)}>
+      <table className={cn('w-full text-left text-xs border-collapse', tableClassName)}>
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             {columns.map((col, idx) => (
@@ -73,6 +78,6 @@ export function DataTable({
       </table>
     </div>
   );
-}
+});
 
 export default DataTable;

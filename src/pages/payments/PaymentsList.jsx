@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiCreditCard,
@@ -9,8 +9,11 @@ import {
   FiEye,
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
+import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
+import Avatar from '../../components/ui/Avatar';
 import Button from '../../components/ui/Button';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
@@ -20,6 +23,7 @@ import { INITIAL_PAYMENTS } from '../../data/payments';
 export function PaymentsList() {
   const navigate = useNavigate();
 
+  const tableRef = useRef(null);
   const [payments] = useState(INITIAL_PAYMENTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
@@ -71,83 +75,71 @@ export function PaymentsList() {
     {
       key: 'id',
       header: 'Transaction ID',
-      className: 'w-36 font-mono text-xs font-semibold text-[#123B66]',
+      className: 'whitespace-nowrap',
       render: (row) => (
-        <button
-          type="button"
-          onClick={() => navigate(`/payments/${row.id}`)}
-          className="hover:underline hover:text-[#1D4ED8] cursor-pointer text-left font-mono font-medium text-xs flex items-center gap-1.5"
-        >
-          <FiCreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          {row.id}
-        </button>
+        <div>
+          <button
+            type="button"
+            onClick={() => navigate(`/payments/${row.id}`)}
+            className="hover:underline hover:text-[#1D4ED8] cursor-pointer text-left font-mono font-semibold text-xs text-[#123B66] flex items-center gap-1.5"
+          >
+            <FiCreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {row.id}
+          </button>
+          <span className="text-[11px] text-slate-400 font-mono block mt-0.5">{row.date}</span>
+        </div>
       ),
     },
     {
       key: 'student',
       header: 'Student',
       render: (row) => (
-        <div className="flex items-center gap-2.5">
-          <img
-            src={row.student.avatar}
-            alt={row.student.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
+        <div className="flex items-center gap-3">
+          <Avatar name={row.student.name} src={row.student.avatar} size="sm" />
           <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate(`/students/${row.student.id}`)}
-              className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline truncate block text-left"
-            >
+            <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
               {row.student.name}
-            </button>
-            <span className="text-[10px] text-slate-400 block font-mono">{row.student.id}</span>
+            </p>
+            <span className="text-[11px] text-slate-500 block font-mono mt-0.5">{row.student.id}</span>
           </div>
         </div>
       ),
     },
     {
       key: 'batch',
-      header: 'Batch',
+      header: 'Batch Details',
       render: (row) => (
         <div className="max-w-[200px]">
           <div className="text-xs font-medium text-slate-900 truncate" title={row.batch.name}>
             {row.batch.name}
           </div>
-          <span className="font-mono text-[10px] text-slate-400">{row.batch.code}</span>
+          <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.batch.code}</span>
         </div>
       ),
     },
     {
       key: 'amount',
-      header: 'Amount',
-      className: 'font-semibold text-slate-900 font-mono text-xs',
-      render: (row) => row.amount,
-    },
-    {
-      key: 'paymentMethod',
-      header: 'Payment Method',
+      header: 'Amount & Method',
       render: (row) => (
-        <span
-          className={`text-[11px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-            row.paymentMethod === 'UPI'
-              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-              : row.paymentMethod === 'Credit Card'
-              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-              : row.paymentMethod === 'Debit Card'
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              : 'bg-slate-100 text-slate-700 border border-slate-200'
-          }`}
-        >
-          {row.paymentMethod}
-        </span>
+        <div>
+          <span className="font-bold text-slate-900 font-mono text-xs block">
+            {row.amount}
+          </span>
+          <span
+            className={`text-[10px] font-medium px-1.5 py-0.2 rounded border inline-block mt-0.5 ${
+              row.paymentMethod === 'UPI'
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : row.paymentMethod === 'Credit Card'
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : row.paymentMethod === 'Debit Card'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+          >
+            {row.paymentMethod}
+          </span>
+        </div>
       ),
-    },
-    {
-      key: 'date',
-      header: 'Date',
-      className: 'text-xs text-slate-600 whitespace-nowrap',
-      render: (row) => row.date,
     },
     {
       key: 'status',
@@ -156,18 +148,23 @@ export function PaymentsList() {
     },
     {
       key: 'actions',
-      header: 'Actions',
-      className: 'text-right',
+      header: 'Action',
+      className: 'text-right whitespace-nowrap',
       render: (row) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate(`/payments/${row.id}`)}
-          leftIcon={<FiEye className="w-3.5 h-3.5" />}
-          className="h-7 text-xs px-2"
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
         >
-          View Dossier
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/payments/${row.id}`)}
+            leftIcon={<FiEye className="w-3.5 h-3.5" />}
+            className="h-7 text-xs px-2.5"
+          >
+            Inspect
+          </Button>
+        </div>
       ),
     },
   ];
@@ -224,61 +221,91 @@ export function PaymentsList() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 max-w-md">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => {
-                setSearchQuery(val);
-                setCurrentPage(1);
-              }}
-              placeholder="Search transaction ID, student, batch, or method..."
-              className="w-full"
-            />
+      <FilterBar
+        isFiltered={searchQuery !== '' || methodFilter !== 'ALL' || statusFilter !== 'ALL'}
+        activeFilterCount={
+          (searchQuery ? 1 : 0) + (methodFilter !== 'ALL' ? 1 : 0) + (statusFilter !== 'ALL' ? 1 : 0)
+        }
+        onReset={() => {
+          setSearchQuery('');
+          setMethodFilter('ALL');
+          setStatusFilter('ALL');
+          setCurrentPage(1);
+        }}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-slate-500">Payment Method:</span>
-            <select
-              value={methodFilter}
-              onChange={(e) => {
-                setMethodFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Methods</option>
-              <option value="UPI">UPI</option>
-              <option value="Credit Card">Credit Card</option>
-              <option value="Debit Card">Debit Card</option>
-              <option value="Net Banking">Net Banking</option>
-            </select>
-
-            <span className="text-xs text-slate-500 ml-2">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="Successful">Successful</option>
-              <option value="Pending">Pending</option>
-              <option value="Failed">Failed</option>
-              <option value="Refunded">Refunded</option>
-            </select>
-          </div>
+        }
+      >
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            onClear={() => setSearchQuery('')}
+            placeholder="Search transaction ID, student, batch..."
+            size="sm"
+          />
         </div>
-      </div>
+
+        <div className="w-32 sm:w-36 shrink-0">
+          <select
+            value={methodFilter}
+            onChange={(e) => {
+              setMethodFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Methods</option>
+            <option value="UPI">UPI</option>
+            <option value="Credit Card">Credit Card</option>
+            <option value="Debit Card">Debit Card</option>
+            <option value="Net Banking">Net Banking</option>
+          </select>
+        </div>
+
+        <div className="w-32 sm:w-36 shrink-0">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="Successful">Successful</option>
+            <option value="Pending">Pending</option>
+            <option value="Failed">Failed</option>
+            <option value="Refunded">Refunded</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Payments Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredPayments.length > 0 ? (
           <>
-            <DataTable columns={columns} data={paginatedPayments} className="border-none" />
+            <DataTable ref={tableRef} columns={columns} data={paginatedPayments} className="border-none" />
             <div className="p-4 border-t border-slate-200">
               <Pagination
                 currentPage={currentPage}

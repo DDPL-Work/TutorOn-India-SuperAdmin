@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiUsers,
@@ -16,12 +16,15 @@ import {
   FiStar,
   FiSend,
   FiImage,
+  FiChevronRight,
+  FiArrowRight,
 } from 'react-icons/fi';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
 import Dropdown from '../../components/ui/Dropdown';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/formatters';
 
@@ -29,6 +32,7 @@ export function DashboardOverview() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const approvalsTableRef = useRef(null);
   const [activeChartRange, setActiveChartRange] = useState('30d');
   const [selectedApproval, setSelectedApproval] = useState(null);
 
@@ -535,7 +539,7 @@ export function DashboardOverview() {
       {/* Two Columns: Pending Approvals (Table) & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Pending Approvals Table (8 cols) */}
-        <div id="pending-approvals-table" className="lg:col-span-8 bg-white border border-slate-200 rounded-xl shadow-subtle flex flex-col">
+        <div id="pending-approvals-table" className="lg:col-span-8 bg-white border border-slate-200 rounded-xl shadow-subtle flex flex-col overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-slate-900 font-geist">
@@ -545,17 +549,20 @@ export function DashboardOverview() {
                 Teacher credential audits, student-teacher connection authorizations, and enrollment confirmations.
               </p>
             </div>
-            <Badge variant="warning" size="sm">
-              {approvals.filter((a) => a.status === 'Pending').length} Pending Review
-            </Badge>
+            <div className="flex items-center gap-2 w-85">
+              <Badge variant="warning" size="sm">
+                {approvals.filter((a) => a.status === 'Pending').length} Pending Review
+              </Badge>
+              <TableScrollButtons targetRef={approvalsTableRef} />
+            </div>
           </div>
 
-          <div className="overflow-x-auto flex-1">
+          <div ref={approvalsTableRef} className="overflow-x-auto flex-1 scroll-smooth">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Request</th>
+                  <th className="py-3 px-4">Type & ID</th>
+                  <th className="py-3 px-4">Request Details</th>
                   <th className="py-3 px-4">Submitted By</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Status</th>
@@ -564,73 +571,83 @@ export function DashboardOverview() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {approvals.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* Type */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                  <tr
+                    key={item.id}
+                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                    onClick={() => setSelectedApproval(item)}
+                  >
+                    {/* Type & ID */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <span className="font-semibold text-slate-800 text-[11px] block">
                         {item.type}
                       </span>
-                      <span className="text-[10px] font-mono text-slate-400">
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 inline-block mt-0.5">
                         {item.id}
                       </span>
                     </td>
 
-                    {/* Request */}
-                    <td className="py-3 px-4">
-                      <p className="font-medium text-slate-900 leading-tight">
+                    {/* Request Details */}
+                    <td className="py-3.5 px-4">
+                      <p className="font-medium text-slate-900 text-[11px] leading-tight line-clamp-2 max-w-[200px]">
                         {item.request}
                       </p>
                     </td>
 
                     {/* Submitted By */}
-                    <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                      {item.submittedBy}
+                    <td className="py-3.5 px-4 text-slate-600 text-[11px] whitespace-nowrap">
+                      <span className="truncate max-w-[140px] block" title={item.submittedBy}>
+                        {item.submittedBy}
+                      </span>
                     </td>
 
                     {/* Date */}
-                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
                       {formatDate(item.date)}
                     </td>
 
                     {/* Status */}
-                    <td className="py-3 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <StatusBadge status={item.status} />
                     </td>
 
-                    {/* Actions: View, Approve, Reject */}
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                    {/* Actions */}
+                    <td
+                      className="py-3.5 px-4 text-right whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
-                          onClick={() => setSelectedApproval(item)}
-                          className="h-7 text-xs px-2"
-                        >
-                          View
-                        </Button>
                         {item.status === 'Pending' && (
-                          <>
+                          <div className="flex items-center gap-1 mr-1">
                             <button
                               type="button"
                               onClick={() => handleApprove(item.id)}
-                              className="p-1 rounded text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
                               title="Approve"
                               aria-label="Approve"
                             >
-                              <FiCheck className="w-4 h-4" />
+                              <FiCheck className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleReject(item.id)}
-                              className="p-1 rounded text-danger hover:bg-red-50 transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
                               title="Reject"
                               aria-label="Reject"
                             >
-                              <FiX className="w-4 h-4" />
+                              <FiX className="w-3.5 h-3.5" />
                             </button>
-                          </>
+                          </div>
                         )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedApproval(item)}
+                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
+                          className="h-7 text-xs px-2"
+                        >
+                          View
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -639,9 +656,18 @@ export function DashboardOverview() {
             </table>
           </div>
 
-          <div className="p-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+          <div className="p-3 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
             <span>Critical gate for student privacy & tutor quality governance.</span>
-            <span className="font-mono text-[11px]">Audit Engine Active</span>
+            <button
+              type="button"
+              onClick={() => navigate('/teachers?tab=pending')}
+              className="inline-flex items-center gap-1.5 font-semibold text-[#123B66] hover:text-[#1D4ED8] transition-colors cursor-pointer"
+            >
+              <span>View Full Audit Log</span>
+              <span className="w-5 h-5 rounded-full bg-blue-50 text-[#123B66] flex items-center justify-center text-[10px]">
+                →
+              </span>
+            </button>
           </div>
         </div>
 

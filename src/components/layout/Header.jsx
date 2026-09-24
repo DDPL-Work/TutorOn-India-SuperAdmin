@@ -122,40 +122,42 @@ export function Header({ onMobileMenuToggle }) {
     <>
       <header className="sticky top-0 z-30 h-14 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all px-4 sm:px-6 flex items-center justify-between gap-4">
         {/* Left Section: Mobile Menu & Breadcrumbs */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 max-w-[55%] sm:max-w-none">
           <button
             type="button"
             onClick={onMobileMenuToggle}
-            className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
             aria-label="Open mobile navigation drawer"
           >
             <FiMenu className="w-5 h-5" />
           </button>
 
-          <Breadcrumbs />
+          <div className="truncate min-w-0 flex-1">
+            <Breadcrumbs />
+          </div>
         </div>
 
         {/* Center: Global Search Shell Trigger */}
-        <div className="hidden md:flex items-center justify-center flex-1 max-w-md mx-2">
+        <div className="hidden md:flex items-center justify-center flex-1 max-w-xs lg:max-w-sm mx-2 min-w-0">
           <button
             type="button"
             onClick={() => setIsSearchOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-400 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 hover:border-slate-300 rounded-lg transition-all cursor-pointer shadow-2xs group"
+            className="w-full h-8.5 flex items-center justify-between px-3 py-1 text-xs text-slate-400 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 hover:border-slate-300 rounded-lg transition-all cursor-pointer shadow-2xs group"
           >
-            <div className="flex items-center gap-2">
-              <FiSearch className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
-              <span className="font-normal text-slate-500">
-                Search students, teachers, batches, audits...
+            <div className="flex items-center gap-2 min-w-0 truncate">
+              <FiSearch className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors shrink-0" />
+              <span className="font-normal text-slate-500 truncate whitespace-nowrap text-xs">
+                Search students, teachers, batches...
               </span>
             </div>
-            <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-white border border-slate-200 rounded">
+            <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-white border border-slate-200 rounded shrink-0 ml-1.5">
               <span>⌘</span>K
             </kbd>
           </button>
         </div>
 
         {/* Right Section: Help, Notifications & Profile */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Mobile search button */}
           <button
             type="button"
@@ -169,7 +171,8 @@ export function Header({ onMobileMenuToggle }) {
           {/* Quick Help Popover */}
           <Dropdown
             align="right"
-            width="w-64"
+            width="w-72 sm:w-72"
+            className="fixed sm:absolute top-14 sm:top-auto left-4 right-4 sm:left-auto sm:right-0 sm:mt-1.5 max-w-sm sm:max-w-none mx-auto sm:mx-0 shadow-2xl"
             trigger={
               <button
                 type="button"
@@ -215,6 +218,7 @@ export function Header({ onMobileMenuToggle }) {
           <Dropdown
             align="right"
             width="w-80 sm:w-96"
+            className="fixed sm:absolute top-14 sm:top-auto left-4 right-4 sm:left-auto sm:right-0 sm:mt-1.5 max-w-sm sm:max-w-none mx-auto sm:mx-0 shadow-2xl"
             trigger={
               <button
                 type="button"
@@ -251,7 +255,7 @@ export function Header({ onMobileMenuToggle }) {
                   )}
                 </div>
 
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100">
                   {notifications.map((item) => (
                     <div
                       key={item.id}
@@ -278,7 +282,7 @@ export function Header({ onMobileMenuToggle }) {
                   ))}
                 </div>
 
-                <div className="p-2 border-t border-slate-100 text-center bg-slate-50/30">
+                <div className="p-2.5 border-t border-slate-100 text-center bg-slate-50/30">
                   <button
                     type="button"
                     onClick={() => {

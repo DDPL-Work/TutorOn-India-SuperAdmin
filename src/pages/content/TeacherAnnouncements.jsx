@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiSend,
@@ -6,12 +6,16 @@ import {
   FiArchive,
   FiUsers,
   FiX,
+  FiEye,
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
+import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Avatar from '../../components/ui/Avatar';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
@@ -23,6 +27,7 @@ export function TeacherAnnouncements() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [announcements, setAnnouncements] = useState(INITIAL_TEACHER_ANNOUNCEMENTS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -151,42 +156,43 @@ export function TeacherAnnouncements() {
       key: 'announcement',
       header: 'Announcement',
       render: (row) => (
-        <div className="max-w-[300px]">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setDetailModal({ isOpen: true, announcement: row })}
-              className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline text-left block truncate cursor-pointer"
-              title={row.title}
-            >
-              {row.title}
-            </button>
-            {row.priority === 'Urgent' && (
-              <Badge variant="danger" size="sm" className="text-[10px] py-0 px-1.5 shrink-0">
-                Urgent
-              </Badge>
-            )}
-            {row.priority === 'High' && (
-              <Badge variant="warning" size="sm" className="text-[10px] py-0 px-1.5 shrink-0">
-                High
-              </Badge>
-            )}
+        <div className="flex items-start gap-3 max-w-[280px]">
+          <div className="w-8 h-8 rounded-full bg-blue-50 text-[#123B66] flex items-center justify-center shrink-0 border border-blue-100 mt-0.5">
+            <FiSend className="w-4 h-4" />
           </div>
-          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{row.message}</p>
-          <span className="font-mono text-[10px] text-slate-400 mt-0.5 block">{row.id}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setDetailModal({ isOpen: true, announcement: row })}
+                className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline text-left block truncate cursor-pointer"
+                title={row.title}
+              >
+                {row.title}
+              </button>
+              {row.priority === 'Urgent' && (
+                <Badge variant="danger" size="sm" className="text-[10px] py-0 px-1.5 shrink-0">
+                  Urgent
+                </Badge>
+              )}
+              {row.priority === 'High' && (
+                <Badge variant="warning" size="sm" className="text-[10px] py-0 px-1.5 shrink-0">
+                  High
+                </Badge>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{row.message}</p>
+            <span className="font-mono text-[10px] text-slate-400 mt-0.5 block">{row.id}</span>
+          </div>
         </div>
       ),
     },
     {
       key: 'teacher',
-      header: 'Teacher',
+      header: 'Faculty',
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <img
-            src={row.teacher.avatar}
-            alt={row.teacher.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
+        <div className="flex items-center gap-2.5">
+          <Avatar name={row.teacher.name} src={row.teacher.avatar} size="xs" />
           <div className="min-w-0">
             <button
               type="button"
@@ -204,18 +210,18 @@ export function TeacherAnnouncements() {
       key: 'batch',
       header: 'Batch',
       render: (row) => (
-        <div className="max-w-[200px]">
+        <div className="max-w-[180px]">
           <div className="text-xs font-medium text-slate-900 truncate" title={row.batch.name}>
             {row.batch.name}
           </div>
-          <span className="font-mono text-[10px] text-slate-500">{row.batch.code}</span>
+          <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.batch.code}</span>
         </div>
       ),
     },
     {
       key: 'publishedDate',
-      header: 'Published Date',
-      className: 'text-xs text-slate-600 whitespace-nowrap',
+      header: 'Published',
+      className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
       render: (row) => row.publishedDate,
     },
     {
@@ -225,41 +231,35 @@ export function TeacherAnnouncements() {
     },
     {
       key: 'actions',
-      header: 'Actions',
-      className: 'text-right',
+      header: 'Action',
+      className: 'text-right whitespace-nowrap',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => handleToggleFlag(row)}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer border ${
+              row.status === 'Flagged'
+                ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+            }`}
+            title={row.status === 'Flagged' ? 'Restore Announcement' : 'Flag Notice'}
+            aria-label="Toggle flag"
+          >
+            <FiAlertTriangle className="w-3.5 h-3.5" />
+          </button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => setDetailModal({ isOpen: true, announcement: row })}
-            className="h-7 text-xs px-2"
+            leftIcon={<FiEye className="w-3.5 h-3.5" />}
+            className="h-7 text-xs px-2.5"
           >
-            View
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleToggleFlag(row)}
-            className={`h-7 text-xs px-2 ${
-              row.status === 'Flagged'
-                ? 'text-emerald-700 hover:bg-emerald-50'
-                : 'text-amber-700 hover:bg-amber-50'
-            }`}
-            title={row.status === 'Flagged' ? 'Restore Announcement' : 'Flag Announcement'}
-          >
-            <FiAlertTriangle className="w-3.5 h-3.5" />
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setArchiveModal({ isOpen: true, announcement: row })}
-            className="h-7 text-xs px-2 text-slate-600 hover:bg-slate-50"
-            title="Archive"
-          >
-            <FiArchive className="w-3.5 h-3.5" />
+            Review
           </Button>
         </div>
       ),
@@ -316,98 +316,74 @@ export function TeacherAnnouncements() {
       </div>
 
       {/* Filters and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 max-w-md">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => {
-                setSearchQuery(val);
-                setCurrentPage(1);
-              }}
-              placeholder="Search by announcement, message, teacher, or batch..."
-              className="w-full"
-            />
+      <FilterBar
+        isFiltered={searchQuery !== '' || priorityFilter !== 'ALL' || activeTab !== 'all'}
+        activeFilterCount={
+          (searchQuery ? 1 : 0) + (priorityFilter !== 'ALL' ? 1 : 0) + (activeTab !== 'all' ? 1 : 0)
+        }
+        onReset={() => {
+          setSearchQuery('');
+          setPriorityFilter('ALL');
+          setActiveTab('all');
+          setCurrentPage(1);
+        }}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-slate-500">Priority:</span>
-            <select
-              value={priorityFilter}
-              onChange={(e) => {
-                setPriorityFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All Priorities</option>
-              <option value="Urgent">Urgent Priority</option>
-              <option value="High">High Priority</option>
-              <option value="Normal">Normal Priority</option>
-            </select>
-          </div>
+        }
+      >
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            onClear={() => setSearchQuery('')}
+            placeholder="Search by announcement, message, teacher, or batch..."
+            size="sm"
+          />
         </div>
 
-        {/* Applied filters bar */}
-        {(searchQuery || priorityFilter !== 'ALL' || activeTab !== 'all') && (
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-            <span>Filtering by:</span>
-            {activeTab !== 'all' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Tab: {tabs.find((t) => t.key === activeTab)?.label}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('all')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {priorityFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Priority: {priorityFilter}
-                <button
-                  type="button"
-                  onClick={() => setPriorityFilter('ALL')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Search: &quot;{searchQuery}&quot;
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('all');
-                setPriorityFilter('ALL');
-                setSearchQuery('');
-              }}
-              className="text-[#1D4ED8] hover:underline text-[11px] ml-auto font-medium cursor-pointer"
-            >
-              Reset all
-            </button>
-          </div>
-        )}
-      </div>
+        <div className="w-36 sm:w-40 shrink-0">
+          <select
+            value={priorityFilter}
+            onChange={(e) => {
+              setPriorityFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All Priorities</option>
+            <option value="Urgent">Urgent Priority</option>
+            <option value="High">High Priority</option>
+            <option value="Normal">Normal Priority</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Announcements Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredAnnouncements.length > 0 ? (
           <>
             <DataTable
+              ref={tableRef}
               columns={columns}
               data={paginatedAnnouncements}
               className="border-none"

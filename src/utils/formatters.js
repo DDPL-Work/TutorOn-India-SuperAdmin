@@ -61,3 +61,41 @@ export function formatRelativeTime(dateString) {
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays}d ago`;
 }
+
+/**
+ * Convert numeric amount to Indian Rupee words (e.g. 14500 -> "Fourteen Thousand Five Hundred Rupees Only")
+ */
+export function numberToWordsINR(amount) {
+  if (amount === undefined || amount === null) return 'Zero Rupees Only';
+  
+  // Extract clean number if string like '₹14,500' is passed
+  let num = typeof amount === 'number' 
+    ? amount 
+    : parseFloat(String(amount).replace(/[^0-9.]/g, ''));
+
+  if (isNaN(num) || num === 0) return 'Zero Rupees Only';
+
+  const singleDigits = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tensDigits = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertTwoDigits(n) {
+    if (n === 0) return '';
+    if (n < 20) return singleDigits[n] + ' ';
+    return tensDigits[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + singleDigits[n % 10] : '') + ' ';
+  }
+
+  function convertNumber(n) {
+    if (n === 0) return '';
+    if (n < 100) return convertTwoDigits(n);
+    if (n < 1000) return singleDigits[Math.floor(n / 100)] + ' Hundred ' + convertNumber(n % 100);
+    if (n < 100000) return convertNumber(Math.floor(n / 1000)) + 'Thousand ' + convertNumber(n % 1000);
+    if (n < 10000000) return convertNumber(Math.floor(n / 100000)) + 'Lakh ' + convertNumber(n % 100000);
+    return convertNumber(Math.floor(n / 10000000)) + 'Crore ' + convertNumber(n % 10000000);
+  }
+
+  const integerPart = Math.floor(num);
+  const words = convertNumber(integerPart).trim().replace(/\s+/g, ' ');
+  return words ? `Indian Rupees ${words} Only` : 'Zero Rupees Only';
+}
+

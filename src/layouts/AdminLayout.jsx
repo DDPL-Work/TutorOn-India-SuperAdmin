@@ -33,7 +33,7 @@ export function AdminLayout() {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-200 ease-in-out ${
+        className={`flex-1 flex flex-col transition-[padding-left] duration-300 ease-in-out ${
           isCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'
         }`}
       >

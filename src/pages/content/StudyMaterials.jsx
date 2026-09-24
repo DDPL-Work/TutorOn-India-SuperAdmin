@@ -21,10 +21,13 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PageHeader from '../../components/ui/PageHeader';
+import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Avatar from '../../components/ui/Avatar';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
@@ -36,6 +39,7 @@ export function StudyMaterials() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [materials, setMaterials] = useState(INITIAL_MATERIALS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -444,10 +448,10 @@ export function StudyMaterials() {
   const columns = [
     {
       key: 'material',
-      header: 'Material',
+      header: 'Material & Courseware',
       render: (row) => (
-        <div className="flex items-start gap-3 w-[280px]">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#123B66] flex items-center justify-center shrink-0 border border-blue-100 mt-0.5">
+        <div className="flex items-start gap-3 w-[260px]">
+          <div className="w-8 h-8 rounded-full bg-blue-50 text-[#123B66] flex items-center justify-center shrink-0 border border-blue-100 mt-0.5">
             <FiFileText className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
@@ -474,12 +478,8 @@ export function StudyMaterials() {
       key: 'teacher',
       header: 'Teacher',
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <img
-            src={row.teacher.avatar}
-            alt={row.teacher.name}
-            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-          />
+        <div className="flex items-center gap-2.5">
+          <Avatar name={row.teacher.name} src={row.teacher.avatar} size="xs" />
           <div className="flex-1 min-w-0">
             <div
               onClick={() => navigate(`/teachers/${row.teacher.id}`)}
@@ -499,50 +499,30 @@ export function StudyMaterials() {
       key: 'batch',
       header: 'Batch',
       render: (row) => (
-        <div className="w-[200px]">
+        <div className="max-w-[180px]">
           <div className="text-xs font-medium text-slate-900 truncate" title={row.batch.name}>
             {row.batch.name}
           </div>
-          <span className="font-mono text-[10px] text-slate-500">{row.batch.code}</span>
+          <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.batch.code}</span>
         </div>
       ),
     },
-
-    // {
-    //   key: 'fileType',
-    //   header: 'File Type',
-    //   className: 'w-24',
-    //   render: (row) => (
-    //     <span
-    //       className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded ${
-    //         row.fileType === 'PDF'
-    //           ? 'bg-red-50 text-red-700 border border-red-200'
-    //           : row.fileType === 'ZIP'
-    //           ? 'bg-amber-50 text-amber-700 border border-amber-200'
-    //           : row.fileType === 'DOCX'
-    //           ? 'bg-blue-50 text-blue-700 border border-blue-200'
-    //           : 'bg-slate-100 text-slate-700 border border-slate-200'
-    //       }`}
-    //     >
-    //       {row.fileType}
-    //     </span>
-    //   ),
-    // },
-
     {
       key: 'uploadedDate',
-      header: 'Uploaded Date',
-      className: 'text-xs text-slate-600 whitespace-nowrap',
+      header: 'Uploaded',
+      className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
       render: (row) => row.uploadedDate,
     },
     {
       key: 'downloads',
-      header: 'Downloads',
+      header: 'Engagement',
       render: (row) => (
-        <div className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
-          <FiDownload className="w-3.5 h-3.5 text-slate-400" />
-          <span>{row.downloads}</span>
-          <span className="text-slate-400 font-normal text-[11px]">({row.viewsCount} views)</span>
+        <div className="text-xs text-slate-700">
+          <div className="flex items-center gap-1 font-medium">
+            <FiDownload className="w-3.5 h-3.5 text-slate-400" />
+            <span>{row.downloads}</span>
+          </div>
+          <span className="text-slate-400 text-[10px] block mt-0.5">{row.viewsCount} views</span>
         </div>
       ),
     },
@@ -553,41 +533,35 @@ export function StudyMaterials() {
     },
     {
       key: 'actions',
-      header: 'Actions',
-      className: 'text-right',
+      header: 'Action',
+      className: 'text-right whitespace-nowrap',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDetailModal({ isOpen: true, material: row })}
-            className="h-7 text-xs px-2"
-          >
-            Review
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
             onClick={() => handleToggleVisibility(row)}
-            className="h-7 text-xs px-2"
+            className="w-7 h-7 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
             title={row.status === 'Hidden' ? 'Make Published' : 'Hide Material'}
+            aria-label="Toggle visibility"
           >
             {row.status === 'Hidden' ? (
               <FiEye className="w-3.5 h-3.5 text-emerald-600" />
             ) : (
-              <FiEyeOff className="w-3.5 h-3.5 text-slate-600" />
+              <FiEyeOff className="w-3.5 h-3.5 text-slate-500" />
             )}
-          </Button>
+          </button>
 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setDeleteModal({ isOpen: true, material: row })}
-            className="h-7 text-xs px-2 text-red-600 hover:bg-red-50 hover:border-red-300"
-            title="Delete File"
+            onClick={() => setDetailModal({ isOpen: true, material: row })}
+            leftIcon={<FiEye className="w-3.5 h-3.5" />}
+            className="h-7 text-xs px-2.5"
           >
-            <FiTrash2 className="w-3.5 h-3.5" />
+            Review
           </Button>
         </div>
       ),
@@ -653,98 +627,74 @@ export function StudyMaterials() {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 max-w-md">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => {
-                setSearchQuery(val);
-                setCurrentPage(1);
-              }}
-              placeholder="Search by title, teacher, batch, or filename..."
-              className="w-full"
-            />
+      <FilterBar
+        isFiltered={searchQuery !== '' || fileTypeFilter !== 'ALL' || activeTab !== 'all'}
+        activeFilterCount={
+          (searchQuery ? 1 : 0) + (fileTypeFilter !== 'ALL' ? 1 : 0) + (activeTab !== 'all' ? 1 : 0)
+        }
+        onReset={() => {
+          setSearchQuery('');
+          setFileTypeFilter('ALL');
+          setActiveTab('all');
+          setCurrentPage(1);
+        }}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-slate-500">File Type:</span>
-            <select
-              value={fileTypeFilter}
-              onChange={(e) => {
-                setFileTypeFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#123B66] cursor-pointer"
-            >
-              <option value="ALL">All File Types</option>
-              <option value="PDF">PDF Documents</option>
-              <option value="DOCX">Word Documents</option>
-              <option value="ZIP">ZIP Archives</option>
-            </select>
-          </div>
+        }
+      >
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            onClear={() => setSearchQuery('')}
+            placeholder="Search by title, teacher, batch, or filename..."
+            size="sm"
+          />
         </div>
 
-        {/* Applied filters chip */}
-        {(searchQuery || fileTypeFilter !== 'ALL' || activeTab !== 'all') && (
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-            <span>Filtering by:</span>
-            {activeTab !== 'all' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Tab: {tabs.find((t) => t.key === activeTab)?.label}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('all')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {fileTypeFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Type: {fileTypeFilter}
-                <button
-                  type="button"
-                  onClick={() => setFileTypeFilter('ALL')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                Search: &quot;{searchQuery}&quot;
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <FiX className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('all');
-                setFileTypeFilter('ALL');
-                setSearchQuery('');
-              }}
-              className="text-[#1D4ED8] hover:underline text-[11px] ml-auto font-medium cursor-pointer"
-            >
-              Reset all
-            </button>
-          </div>
-        )}
-      </div>
+        <div className="w-36 sm:w-40 shrink-0">
+          <select
+            value={fileTypeFilter}
+            onChange={(e) => {
+              setFileTypeFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 cursor-pointer"
+          >
+            <option value="ALL">All File Types</option>
+            <option value="PDF">PDF Documents</option>
+            <option value="DOCX">Word Documents</option>
+            <option value="ZIP">ZIP Archives</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Materials Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredMaterials.length > 0 ? (
           <>
             <DataTable
+              ref={tableRef}
               columns={columns}
               data={paginatedMaterials}
               className="border-none"

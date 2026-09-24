@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiPlus,
@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -20,6 +21,7 @@ export function BannersList() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [banners, setBanners] = useState(INITIAL_BANNERS);
   const [selectedBanner, setSelectedBanner] = useState(INITIAL_BANNERS[0]);
 
@@ -274,12 +276,16 @@ export function BannersList() {
                 Click any row or preview icon to inspect live mobile rendering.
               </p>
             </div>
-            <Badge variant="navy" size="sm">
-              {banners.filter((b) => b.status === 'Active').length} Active
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="navy" size="sm">
+                {banners.filter((b) => b.status === 'Active').length} Active
+              </Badge>
+              <TableScrollButtons targetRef={tableRef} />
+            </div>
           </div>
 
           <DataTable
+            ref={tableRef}
             columns={columns}
             data={banners}
             onRowClick={(row) => setSelectedBanner(row)}

@@ -64,8 +64,8 @@ export function AnnouncementEditor() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="flex items-center text-xs">
-        <ol className="flex items-center gap-1.5 text-slate-500">
+      <nav aria-label="Breadcrumb" className="hidden sm:flex items-center text-xs">
+        <ol className="flex items-center gap-1.5 text-slate-500 flex-wrap">
           <li>
             <Link to="/dashboard" className="hover:text-[#123B66] hover:underline font-medium">
               Dashboard

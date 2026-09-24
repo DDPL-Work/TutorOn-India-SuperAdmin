@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiUsers,
@@ -20,11 +20,11 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import SearchBar from '../../components/ui/SearchBar';
 import FilterBar from '../../components/ui/FilterBar';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
 import Pagination from '../../components/ui/Pagination';
-import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import Dropdown from '../../components/ui/Dropdown';
 import { useToast } from '../../hooks/useToast';
@@ -35,6 +35,7 @@ export function StudentsList() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  const tableRef = useRef(null);
   const [students, setStudents] = useState(INITIAL_STUDENTS);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -310,9 +311,29 @@ export function StudentsList() {
         isFiltered={isFiltered}
         activeFilterCount={activeFilterCount}
         onReset={handleResetFilters}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
+          </div>
+        }
       >
         {/* Search */}
-        <div className="w-full sm:w-72">
+        <div className="w-48 sm:w-60 md:w-64 flex-1 min-w-[140px] max-w-xs">
           <SearchBar
             value={searchTerm}
             onChange={(val) => {
@@ -326,7 +347,7 @@ export function StudentsList() {
         </div>
 
         {/* Status Filter */}
-        <div className="w-36">
+        <div className="w-32 sm:w-36 shrink-0">
           <Select
             value={statusFilter}
             onChange={(e) => {
@@ -343,7 +364,7 @@ export function StudentsList() {
         </div>
 
         {/* Board Filter */}
-        <div className="w-36">
+        <div className="w-32 sm:w-36 shrink-0">
           <Select
             value={boardFilter}
             onChange={(e) => {
@@ -358,40 +379,21 @@ export function StudentsList() {
             <option value="State Board">State Board</option>
           </Select>
         </div>
-
-        {/* Rows per page selector */}
-        <div className="flex items-center gap-1.5 ml-auto text-xs text-slate-500">
-          <span>Rows:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-          </select>
-        </div>
       </FilterBar>
 
       {/* Students Data Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden">
         {paginatedStudents.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div ref={tableRef} className="overflow-x-auto scroll-smooth">
+            <table className="w-full min-w-[920px] text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Student</th>
-                  <th className="py-3 px-4">Student ID</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Phone</th>
-                  <th className="py-3 px-4">Joined Date</th>
-                  <th className="py-3 px-4 text-center">Enrollments</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Student & ID</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Contact Details</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Joined</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Enrollments</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Status</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -401,51 +403,45 @@ export function StudentsList() {
                     className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                     onClick={() => navigate(`/students/${student.id}`)}
                   >
-                    {/* Student Info */}
-                    <td className="py-3 px-4">
+                    {/* Student Info with Circular Avatar & ID */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <Avatar name={student.name} size="sm" />
                         <div>
                           <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
                             {student.name}
                           </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {student.grade} · <span className="font-medium text-slate-600">{student.board}</span>
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                            <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
+                              {student.id}
+                            </span>
+                            <span>{student.grade} · {student.board}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Student ID */}
-                    <td className="py-3 px-4 font-mono font-medium text-slate-700">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-[11px]">
-                        {student.id}
-                      </span>
-                    </td>
-
-                    {/* Email */}
-                    <td className="py-3 px-4 text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <FiMail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[180px]">{student.email}</span>
-                      </div>
-                    </td>
-
-                    {/* Phone */}
-                    <td className="py-3 px-4 font-mono text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <FiPhone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{student.phone}</span>
+                    {/* Contact Details (Email & Phone Stacked) */}
+                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <FiMail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{student.email}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-500">
+                          <FiPhone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{student.phone}</span>
+                        </div>
                       </div>
                     </td>
 
                     {/* Joined Date */}
-                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap text-[11px]">
                       {formatDate(student.joinedDate)}
                     </td>
 
                     {/* Enrollments Count */}
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${
                           student.enrollmentsCount > 0
@@ -458,24 +454,24 @@ export function StudentsList() {
                     </td>
 
                     {/* Status */}
-                    <td className="py-3 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <StatusBadge status={student.status} />
                     </td>
 
-                    {/* Actions */}
+                    {/* Actions & More */}
                     <td
-                      className="py-3 px-4 text-right"
+                      className="py-3.5 px-4 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1.5">
                         <Button
-                          variant="secondary"
+                          variant="outline"
                           size="sm"
-                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
                           onClick={() => navigate(`/students/${student.id}`)}
-                          className="h-7 text-xs px-2"
+                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
+                          className="h-7 text-xs px-2.5 whitespace-nowrap"
                         >
-                          View
+                          View Details
                         </Button>
 
                         <Dropdown
@@ -484,7 +480,7 @@ export function StudentsList() {
                           trigger={
                             <button
                               type="button"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
                               aria-label="Student actions"
                             >
                               <FiMoreVertical className="w-4 h-4" />

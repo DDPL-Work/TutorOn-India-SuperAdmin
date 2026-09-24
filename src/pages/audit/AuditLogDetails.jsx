@@ -44,8 +44,8 @@ export function AuditLogDetails() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" className="flex items-center text-xs">
-        <ol className="flex items-center gap-1.5 text-slate-500">
+      <nav aria-label="Breadcrumb" className="hidden sm:flex items-center text-xs">
+        <ol className="flex items-center gap-1.5 text-slate-500 flex-wrap">
           <li>
             <Link to="/dashboard" className="hover:text-[#123B66] hover:underline font-medium">
               Dashboard
@@ -63,11 +63,11 @@ export function AuditLogDetails() {
       </nav>
 
       {/* Header and Details Banner */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold font-geist text-slate-900 tracking-tight">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <h1 className="text-lg sm:text-xl font-bold font-geist text-slate-900 tracking-tight">
                 Audit Inspection: <span className="font-mono text-[#123B66]">{log.id}</span>
               </h1>
               <Badge variant="navy" size="sm" className="font-mono">
@@ -88,6 +88,7 @@ export function AuditLogDetails() {
             size="sm"
             onClick={() => navigate('/audit-logs')}
             leftIcon={<FiArrowLeft className="w-3.5 h-3.5" />}
+            className="self-start sm:self-auto"
           >
             Back to Directory
           </Button>

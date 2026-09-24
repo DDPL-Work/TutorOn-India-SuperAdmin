@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FiLock,
@@ -16,8 +16,10 @@ import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
 import SearchBar from '../../components/ui/SearchBar';
 import FilterBar from '../../components/ui/FilterBar';
+import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Badge from '../../components/ui/Badge';
+import Avatar from '../../components/ui/Avatar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
@@ -30,6 +32,7 @@ export function ConnectionsList() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const tableRef = useRef(null);
   const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -262,7 +265,10 @@ export function ConnectionsList() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-thin">
+      <div
+        className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
         {[
           { id: 'ALL', label: 'All Requests', count: connections.length },
           { id: 'Pending Admin Verification', label: 'Pending Admin Verification', count: pendingAdminCount, isAlert: pendingAdminCount > 0 },
@@ -297,8 +303,28 @@ export function ConnectionsList() {
         isFiltered={searchTerm !== ''}
         activeFilterCount={searchTerm !== '' ? 1 : 0}
         onReset={() => setSearchTerm('')}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+              <span>Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <TableScrollButtons targetRef={tableRef} />
+          </div>
+        }
       >
-        <div className="w-full sm:w-80">
+        <div className="w-48 sm:w-60 md:w-72 flex-1 min-w-[140px] max-w-sm">
           <SearchBar
             value={searchTerm}
             onChange={(val) => {
@@ -310,39 +336,22 @@ export function ConnectionsList() {
             size="sm"
           />
         </div>
-
-        <div className="flex items-center gap-1.5 ml-auto text-xs text-slate-500">
-          <span>Rows:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 cursor-pointer"
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-          </select>
-        </div>
       </FilterBar>
 
       {/* Connections Data Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden">
         {paginatedConnections.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div ref={tableRef} className="overflow-x-auto scroll-smooth">
+            <table className="w-full min-w-[1060px] text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Request ID</th>
-                  <th className="py-3 px-4">Teacher</th>
-                  <th className="py-3 px-4">Student</th>
-                  <th className="py-3 px-4">Request Date</th>
-                  <th className="py-3 px-4 text-center">Student Approval</th>
-                  <th className="py-3 px-4 text-center">Admin Verification</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+                  <th className="py-3 px-3.5 min-w-[105px] whitespace-nowrap">Request ID</th>
+                  <th className="py-3 px-3.5 min-w-[200px] whitespace-nowrap">Teacher</th>
+                  <th className="py-3 px-3.5 min-w-[190px] whitespace-nowrap">Student</th>
+                  <th className="py-3 px-3.5 min-w-[100px] whitespace-nowrap">Date</th>
+                  <th className="py-3 px-3.5 min-w-[170px] text-center whitespace-nowrap">Approvals Track</th>
+                  <th className="py-3 px-3.5 min-w-[160px] whitespace-nowrap">Status</th>
+                  <th className="py-3 px-3.5 min-w-[135px] text-right whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -359,27 +368,33 @@ export function ConnectionsList() {
                       </span>
                     </td>
 
-                    {/* Teacher */}
-                    <td className="py-3.5 px-4">
-                      <div>
-                        <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-                          {conn.teacher.name}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {conn.teacher.subject} · <span className="font-mono">{conn.teacher.id}</span>
-                        </p>
+                    {/* Teacher with Circular Avatar */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={conn.teacher.name} size="sm" />
+                        <div>
+                          <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
+                            {conn.teacher.name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {conn.teacher.subject} · <span className="font-mono">{conn.teacher.id}</span>
+                          </p>
+                        </div>
                       </div>
                     </td>
 
-                    {/* Student */}
-                    <td className="py-3.5 px-4">
-                      <div>
-                        <p className="font-semibold text-slate-900 leading-tight">
-                          {conn.student.name}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {conn.student.grade} · <span className="font-mono">{conn.student.id}</span>
-                        </p>
+                    {/* Student with Circular Avatar */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={conn.student.name} size="sm" />
+                        <div>
+                          <p className="font-semibold text-slate-900 leading-tight">
+                            {conn.student.name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {conn.student.grade} · <span className="font-mono">{conn.student.id}</span>
+                          </p>
+                        </div>
                       </div>
                     </td>
 
@@ -388,38 +403,34 @@ export function ConnectionsList() {
                       {formatDate(conn.requestDate)}
                     </td>
 
-                    {/* Student Approval */}
+                    {/* Approvals Track (Student + Admin) */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      {conn.studentApproval === 'Approved' ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-100">
-                          <FiCheck className="w-3 h-3" /> Approved
+                      <div className="flex flex-col items-center gap-1">
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.2 rounded-full font-medium ${
+                            conn.studentApproval === 'Approved'
+                              ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
+                              : conn.studentApproval === 'Pending'
+                              ? 'text-amber-700 bg-amber-50 border border-amber-100'
+                              : 'text-danger bg-red-50 border border-red-100'
+                          }`}
+                        >
+                          {conn.studentApproval === 'Approved' ? <FiCheck className="w-2.5 h-2.5" /> : conn.studentApproval === 'Pending' ? <FiClock className="w-2.5 h-2.5" /> : <FiX className="w-2.5 h-2.5" />}
+                          Student: {conn.studentApproval}
                         </span>
-                      ) : conn.studentApproval === 'Pending' ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium border border-amber-100">
-                          <FiClock className="w-3 h-3" /> Pending
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-danger bg-red-50 px-2 py-0.5 rounded-full font-medium border border-red-100">
-                          <FiX className="w-3 h-3" /> Rejected
-                        </span>
-                      )}
-                    </td>
 
-                    {/* Admin Verification */}
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      {conn.adminVerification === 'Verified' ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-100">
-                          <FiShield className="w-3 h-3" /> Verified
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.2 rounded-full font-medium ${
+                            conn.adminVerification === 'Verified'
+                              ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
+                              : conn.adminVerification === 'Pending'
+                              ? 'text-amber-700 bg-amber-50 border border-amber-100'
+                              : 'text-danger bg-red-50 border border-red-100'
+                          }`}
+                        >
+                          <FiShield className="w-2.5 h-2.5" /> Admin: {conn.adminVerification}
                         </span>
-                      ) : conn.adminVerification === 'Pending' ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium border border-amber-100">
-                          <FiClock className="w-3 h-3" /> Pending Admin
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-danger bg-red-50 px-2 py-0.5 rounded-full font-medium border border-red-100">
-                          <FiX className="w-3 h-3" /> Declined
-                        </span>
-                      )}
+                      </div>
                     </td>
 
                     {/* Status */}
@@ -434,44 +445,44 @@ export function ConnectionsList() {
                       </div>
                     </td>
 
-                    {/* Actions */}
+                    {/* Actions & Buttons */}
                     <td
                       className="py-3.5 px-4 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
-                          onClick={() => navigate(`/connections/${conn.id}`)}
-                          className="h-7 text-xs px-2"
-                        >
-                          View
-                        </Button>
-
+                      <div className="flex items-center justify-end gap-2">
                         {conn.status === 'Pending Admin Verification' && (
-                          <>
+                          <div className="flex items-center gap-1 mr-1">
                             <button
                               type="button"
                               onClick={() => openApproveModal(conn)}
-                              className="p-1 rounded text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
                               title="Verify & Unlock Contact"
                               aria-label="Approve connection"
                             >
-                              <FiCheck className="w-4 h-4" />
+                              <FiCheck className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => openRejectModal(conn)}
-                              className="p-1 rounded text-danger hover:bg-red-50 transition-colors cursor-pointer"
-                              title="Reject Connection"
+                              className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+                              title="Reject & Block Contact"
                               aria-label="Reject connection"
                             >
-                              <FiX className="w-4 h-4" />
+                              <FiX className="w-3.5 h-3.5" />
                             </button>
-                          </>
+                          </div>
                         )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/connections/${conn.id}`)}
+                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
+                          className="h-7 text-xs px-2.5 whitespace-nowrap"
+                        >
+                          View Details
+                        </Button>
                       </div>
                     </td>
                   </tr>

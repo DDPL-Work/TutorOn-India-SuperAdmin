@@ -16,10 +16,6 @@ export const NAVIGATION_ITEMS = [
     part: 2,
     isImplemented: true,
     badge: null,
-    children: [
-      { id: 'students-directory', label: 'All Students', path: '/students' },
-      { id: 'students-details', label: 'Student Details', path: '/students/STU-10021' },
-    ],
   },
   {
     id: 'teachers',
@@ -33,7 +29,6 @@ export const NAVIGATION_ITEMS = [
       { id: 'teachers-directory', label: 'All Teachers', path: '/teachers' },
       { id: 'teachers-verification', label: 'Pending Verification', path: '/teachers/pending' },
       { id: 'teachers-verified', label: 'Verified Teachers', path: '/teachers/verified' },
-      { id: 'teachers-details', label: 'Teacher Details', path: '/teachers/TCH-10248' },
     ],
   },
   {
@@ -47,7 +42,7 @@ export const NAVIGATION_ITEMS = [
     children: [
       { id: 'connections-directory', label: 'All Connections', path: '/connections' },
       { id: 'connections-approval', label: 'Pending Approvals', path: '/connections?tab=pending_admin' },
-      { id: 'connections-details', label: 'Connection Details', path: '/connections/CON-30019' },
+      // { id: 'connections-details', label: 'Connection Details', path: '/connections/CON-30019' },
     ],
   },
   {
@@ -61,7 +56,6 @@ export const NAVIGATION_ITEMS = [
     children: [
       { id: 'enrollments-all', label: 'All Enrollments', path: '/enrollments' },
       { id: 'enrollments-pending', label: 'Pending Enrollment Requests', path: '/enrollments?tab=awaiting_confirmation' },
-      { id: 'enrollments-details', label: 'Enrollment Details', path: '/enrollments/ENR-50031' },
     ],
   },
   {
@@ -119,7 +113,6 @@ export const NAVIGATION_ITEMS = [
     badge: null,
     children: [
       { id: 'reports-list', label: 'Abuse Reports', path: '/reports' },
-      { id: 'reports-details', label: 'Report Details', path: '/reports/REP-70011' },
     ],
   },
   {
@@ -132,7 +125,6 @@ export const NAVIGATION_ITEMS = [
     badge: null,
     children: [
       { id: 'audit-logs-list', label: 'Approval History', path: '/audit-logs' },
-      { id: 'audit-logs-details', label: 'Audit Details', path: '/audit-logs/AUD-10081' },
     ],
   },
 ];

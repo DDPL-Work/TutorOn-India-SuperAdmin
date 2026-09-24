@@ -255,7 +255,7 @@ export function Header({ onMobileMenuToggle }) {
                   )}
                 </div>
 
-                <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100">
+                <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100 scrollbar-thin">
                   {notifications.map((item) => (
                     <div
                       key={item.id}

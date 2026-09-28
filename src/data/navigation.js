@@ -25,11 +25,11 @@ export const NAVIGATION_ITEMS = [
     part: 3,
     isImplemented: true,
     badge: null,
-    children: [
-      { id: 'teachers-directory', label: 'All Teachers', path: '/teachers' },
-      { id: 'teachers-verification', label: 'Pending Verification', path: '/teachers/pending' },
-      { id: 'teachers-verified', label: 'Verified Teachers', path: '/teachers/verified' },
-    ],
+    // children: [
+    //   { id: 'teachers-directory', label: 'All Teachers', path: '/teachers' },
+    //   { id: 'teachers-verification', label: 'Pending Verification', path: '/teachers/pending' },
+    //   { id: 'teachers-verified', label: 'Verified Teachers', path: '/teachers/verified' },
+    // ],
   },
   // {
   //   id: 'connections',
@@ -53,10 +53,6 @@ export const NAVIGATION_ITEMS = [
     part: 4,
     isImplemented: true,
     badge: null,
-    children: [
-      { id: 'enrollments-all', label: 'All Enrollments', path: '/enrollments' },
-      { id: 'enrollments-pending', label: 'Pending Enrollment Requests', path: '/enrollments?tab=awaiting_confirmation' },
-    ],
   },
   {
     id: 'content',

@@ -1,5 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchDashboardStats, fetchDashboardActivity } from '../../API/thunks/dashboardThunks';
+import { fetchTeachers, approveTeacher, rejectTeacher } from '../../API/thunks/teachersThunks';
 import {
   FiUsers,
   FiUserCheck,
@@ -36,205 +39,228 @@ export function DashboardOverview() {
   const [activeChartRange, setActiveChartRange] = useState('30d');
   const [selectedApproval, setSelectedApproval] = useState(null);
 
-  // Six Prompt-Specific KPI Cards
+  const dispatch = useDispatch();
+  const { stats, activity, isLoadingStats, isLoadingActivity } = useSelector((state) => state.dashboard);
+
+  const [pendingVerifications, setPendingVerifications] = useState([]);
+
+  useEffect(() => {
+    dispatch(fetchDashboardStats());
+    dispatch(fetchDashboardActivity());
+    // Fetch pending teachers for the approvals table
+    // URL: /admin/teachers/?verification_status=PENDING_VERIFICATION&page=1&page_size=10
+    dispatch(fetchTeachers({ verification_status: 'PENDING_VERIFICATION', page: 1, page_size: 10 })).unwrap()
+      .then((res) => {
+        // fetchTeachers returns the full response object; data is in res.data
+        const teachers = res?.data || (Array.isArray(res) ? res : []);
+        setPendingVerifications(teachers);
+      })
+      .catch(() => setPendingVerifications([]));
+  }, [dispatch]);
+
+  // Safely extract from actual API response shape:
+  // data.primary_kpis = array, data.secondary_metrics = array, data.admin_user = object
+  const primaryKpis = stats?.primary_kpis || [];
+  const secondaryMetrics = stats?.secondary_metrics || [];
+  const operator = stats?.admin_user || { name: 'Super Admin' };
+
+  // Convert primary_kpis array to a lookup map by id for easy access
+  const kpi = Object.fromEntries(primaryKpis.map((k) => [k.id, k]));
+  // Convert secondary_metrics array to a lookup map by id
+  const sec = Object.fromEntries(secondaryMetrics.map((s) => [s.id, s]));
+
+  // Six Primary Metric KPI Cards — mapped from API primary_kpis array
   const kpiMetrics = [
     {
       id: 'total_students',
       title: 'Total Students',
-      value: '8,452',
-      change: '+8.4% this month',
-      isPositive: true,
+      value: kpi.total_students?.formatted_value || '0',
+      change: kpi.total_students?.badge?.text || 'No data',
+      isPositive: kpi.total_students?.badge?.variant !== 'danger',
       icon: <FiUsers className="w-5 h-5 text-[#123B66]" />,
-      badge: 'Learners',
+      badge: kpi.total_students?.subtitle || 'Learners',
       onClick: () => navigate('/students'),
     },
     {
       id: 'total_teachers',
       title: 'Total Teachers',
-      value: '1,248',
-      change: '+5.2% this month',
-      isPositive: true,
+      value: kpi.total_teachers?.formatted_value || '0',
+      change: kpi.total_teachers?.badge?.text || 'No data',
+      isPositive: kpi.total_teachers?.badge?.variant !== 'danger',
       icon: <FiUserCheck className="w-5 h-5 text-emerald-600" />,
-      badge: 'Faculty',
+      badge: kpi.total_teachers?.subtitle || 'Faculty',
       onClick: () => navigate('/teachers'),
     },
     {
       id: 'pending_verification',
       title: 'Pending Teacher Verification',
-      value: '37',
-      change: 'Needs attention',
+      value: kpi.pending_teacher_verification?.formatted_value || '0',
+      change: kpi.pending_teacher_verification?.badge?.text || 'Needs attention',
       isAlert: true,
       icon: <FiClock className="w-5 h-5 text-amber-600" />,
-      badge: 'Action Required',
+      badge: kpi.pending_teacher_verification?.subtitle || 'Action Required',
       onClick: () => navigate('/teachers?tab=pending'),
     },
     {
       id: 'pending_connections',
       title: 'Pending Connections',
-      value: '24',
-      change: 'Awaiting admin review',
+      value: kpi.pending_connections?.formatted_value || '0',
+      change: kpi.pending_connections?.badge?.text || 'Awaiting admin review',
       isAlert: true,
       icon: <FiLink className="w-5 h-5 text-purple-600" />,
-      badge: 'Protected Flow',
+      badge: kpi.pending_connections?.subtitle || 'Protected Flow',
       onClick: () => navigate('/connections?tab=pending_admin'),
     },
     {
       id: 'pending_enrollments',
       title: 'Pending Enrollments',
-      value: '18',
-      change: 'Requires confirmation',
+      value: kpi.pending_enrollments?.formatted_value || '0',
+      change: kpi.pending_enrollments?.badge?.text || 'Requires confirmation',
       isAlert: true,
       icon: <FiBookOpen className="w-5 h-5 text-[#1D4ED8]" />,
-      badge: 'Batches',
+      badge: kpi.pending_enrollments?.subtitle || 'Batches',
       onClick: () => navigate('/enrollments?tab=awaiting_confirmation'),
     },
     {
       id: 'revenue',
       title: 'Revenue',
-      value: '₹4,85,240',
-      change: 'This month',
+      value: kpi.revenue?.formatted_value || '₹0',
+      change: kpi.revenue?.badge?.text || 'This month',
       isPositive: true,
       icon: <FiCreditCard className="w-5 h-5 text-emerald-700" />,
-      badge: 'Gross Fees',
+      badge: kpi.revenue?.subtitle || 'Gross Fees',
       onClick: () => navigate('/payments'),
     },
   ];
 
-  // Secondary Snapshot Cards
+  // Secondary Snapshot Cards mapped from API secondary_metrics array
   const platformSnapshots = [
-    { title: 'Active Students', value: '7,890', subtext: '93.3% engagement rate', icon: <FiUsers className="w-4 h-4 text-[#123B66]" />, path: '/students' },
-    { title: 'Verified Teachers', value: '1,185', subtext: '94.9% verification pass', icon: <FiUserCheck className="w-4 h-4 text-emerald-600" />, path: '/teachers/verified' },
-    { title: 'Active Batches', value: '342', subtext: 'Live across India', icon: <FiLayers className="w-4 h-4 text-[#1D4ED8]" />, path: '/enrollments' },
-    { title: 'Active Connections', value: '1,520', subtext: 'Protected communications', icon: <FiLink className="w-4 h-4 text-purple-600" />, path: '/connections' },
+    { title: 'Active Students', value: sec.active_students?.formatted_value || '0', subtext: sec.active_students?.subtext || '0% engagement rate', icon: <FiUsers className="w-4 h-4 text-[#123B66]" />, path: '/students' },
+    { title: 'Verified Teachers', value: sec.verified_teachers?.formatted_value || '0', subtext: sec.verified_teachers?.subtext || '0% verification pass', icon: <FiUserCheck className="w-4 h-4 text-emerald-600" />, path: '/teachers/verified' },
+    { title: 'Active Batches', value: sec.active_batches?.formatted_value || '0', subtext: sec.active_batches?.subtext || 'Live across India', icon: <FiLayers className="w-4 h-4 text-[#1D4ED8]" />, path: '/enrollments' },
+    { title: 'Active Connections', value: sec.active_connections?.formatted_value || '0', subtext: sec.active_connections?.subtext || 'Protected communications', icon: <FiLink className="w-4 h-4 text-purple-600" />, path: '/connections' },
   ];
 
-  // Pending Approvals Queue
-  const [approvals, setApprovals] = useState([
-    {
-      id: 'APP-TCH-101',
-      type: 'Teacher Verification',
-      request: 'Dr. Ramesh Chandra Gupta (Physics · Class XII / JEE)',
-      submittedBy: 'dr.gupta.physics@gmail.com',
-      date: '2026-09-23T09:30:00Z',
-      status: 'Pending',
-      details: {
-        experience: '14 Years (Ex-Faculty, FIITJEE)',
-        degrees: 'Ph.D Physics (IIT Delhi), M.Sc Physics',
-        targetSubject: 'Physics & Advanced Mechanics',
-        phone: '+91 98765 43210',
-      },
+  // Pending Approvals — from /admin/teachers/?verification_status=PENDING_VERIFICATION
+  // Teacher shape: { id, display_name, email, phone, headline, subjects, verification_status, ... }
+  const approvals = pendingVerifications.map((t) => ({
+    id: t.id,
+    type: 'Teacher Verification',
+    request: `${t.display_name || 'Unknown Teacher'}${t.subjects?.length ? ' — ' + t.subjects.join(', ') : ''}`,
+    submittedBy: t.email || '—',
+    date: t.date_joined || t.created_at || new Date().toISOString(),
+    status: 'Pending',
+    details: {
+      'Headline': t.headline || '—',
+      'Subjects': t.subjects?.join(', ') || '—',
+      'Hourly Rate': t.hourly_rate ? `₹${t.hourly_rate}` : '—',
+      'Phone': t.phone || '—',
     },
-    {
-      id: 'APP-CON-204',
-      type: 'Connection Approval',
-      request: 'Aarav Malhotra requested contact for Dr. Ramesh Chandra Gupta',
-      submittedBy: 'Aarav Malhotra (Class XII PCM)',
-      date: '2026-09-23T08:15:00Z',
-      status: 'Pending',
-      details: {
-        reason: 'Parent requested 1-on-1 weekend consultation prior to batch payment.',
-        studentId: 'STU-10021',
-        teacherPhone: '+91 98765 43210',
-      },
-    },
-    {
-      id: 'APP-ENR-305',
-      type: 'Enrollment Confirmation',
-      request: 'Diya Patel requested seat in NEET Chemistry Rapid Batch',
-      submittedBy: 'Diya Patel (Ahmedabad)',
-      date: '2026-09-23T07:45:00Z',
-      status: 'Pending',
-      details: {
-        batchId: 'BAT-CHM-090',
-        fee: '₹14,000',
-        teacher: 'Prof. Arvind Nambiar',
-        seatNumber: 'Seat #24/25',
-      },
-    },
-    {
-      id: 'APP-TCH-102',
-      type: 'Teacher Verification',
-      request: 'Sunita Venkatesh (Mathematics · Class X & XII)',
-      submittedBy: 'sunita.maths@outlook.com',
-      date: '2026-09-22T18:20:00Z',
-      status: 'Pending',
-      details: {
-        experience: '9 Years (DU Gold Medalist, B.Ed)',
-        degrees: 'M.Sc Mathematics (Delhi University)',
-        targetSubject: 'Calculus, Geometry, Olympiads',
-        phone: '+91 94421 88902',
-      },
-    },
-    {
-      id: 'APP-CON-205',
-      type: 'Connection Approval',
-      request: 'Meera Deshmukh requested contact for Sunita Venkatesh',
-      submittedBy: 'Meera Deshmukh (Class X CBSE)',
-      date: '2026-09-22T16:10:00Z',
-      status: 'Pending',
-      details: {
-        reason: 'Inquiring about morning batch timings and doubt clearing sessions.',
-        studentId: 'STU-10022',
-        teacherPhone: '+91 94421 88902',
-      },
-    },
-  ]);
+  }));
 
-  // Recent Activity Feed
-  const recentActivities = [
-    {
-      id: 'act-1',
-      icon: <FiUserCheck className="w-4 h-4 text-[#123B66]" />,
-      description: 'Teacher profile submitted for verification by Dr. Ramesh Chandra Gupta',
-      timestamp: '15m ago',
-      category: 'Teacher',
-    },
-    {
-      id: 'act-2',
-      icon: <FiLink className="w-4 h-4 text-purple-600" />,
-      description: 'Connection request awaiting admin review: Aarav Malhotra → Dr. Ramesh Gupta',
-      timestamp: '42m ago',
-      category: 'Connection',
-    },
-    {
-      id: 'act-3',
-      icon: <FiBookOpen className="w-4 h-4 text-[#1D4ED8]" />,
-      description: 'Student requested batch enrollment: Diya Patel → NEET Chemistry Batch',
-      timestamp: '1h ago',
-      category: 'Enrollment',
-    },
-    {
-      id: 'act-4',
-      icon: <FiStar className="w-4 h-4 text-amber-500" />,
-      description: 'New review reported for moderation: "Inappropriate review on Physics Batch B-101"',
-      timestamp: '2h ago',
-      category: 'Review',
-    },
-    {
-      id: 'act-5',
-      icon: <FiBell className="w-4 h-4 text-emerald-600" />,
-      description: 'New enrollment request confirmed: Kabir Mehta enrolled in ICSE English Literature',
-      timestamp: '3h ago',
-      category: 'Enrollment',
-    },
-  ];
-
-  // Approval Handlers
-  const handleApprove = (approvalId) => {
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === approvalId ? { ...a, status: 'Approved' } : a))
-    );
-    setSelectedApproval(null);
-    toast.success('Request Approved', `Approval ${approvalId} confirmed.`);
+  // Approve handler — calls real API
+  const handleApprove = async (approvalId) => {
+    try {
+      await dispatch(approveTeacher({ id: approvalId, admin_notes: 'Approved by Super Admin.' })).unwrap();
+      setPendingVerifications((prev) => prev.filter((v) => v.id !== approvalId));
+      setSelectedApproval(null);
+      toast.success('Teacher Verified', 'The teacher has been approved and is now verified.');
+    } catch (e) {
+      toast.error('Action Failed', e?.toString() || 'Could not approve verification.');
+    }
   };
 
-  const handleReject = (approvalId) => {
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === approvalId ? { ...a, status: 'Rejected' } : a))
-    );
-    setSelectedApproval(null);
-    toast.error('Request Rejected', `Approval ${approvalId} has been declined.`);
+  // Reject handler — calls real API
+  const handleReject = async (approvalId) => {
+    try {
+      await dispatch(rejectTeacher({ id: approvalId, rejection_reason: 'Rejected by Super Admin.', admin_note: '' })).unwrap();
+      setPendingVerifications((prev) => prev.filter((v) => v.id !== approvalId));
+      setSelectedApproval(null);
+      toast.error('Verification Rejected', 'The teacher verification has been declined.');
+    } catch (e) {
+      toast.error('Action Failed', e?.toString() || 'Could not reject verification.');
+    }
   };
+
+  // Recent Activity Feed — from stats.recent_activity (same dashboard API response)
+  const getCategoryIcon = (action) => {
+    const a = (action || '').toUpperCase();
+    if (a.includes('TEACHER') || a.includes('VERIFIED')) return <FiUserCheck className="w-4 h-4 text-[#123B66]" />;
+    if (a.includes('ENROLLMENT') || a.includes('BATCH')) return <FiBookOpen className="w-4 h-4 text-[#1D4ED8]" />;
+    if (a.includes('CONNECTION')) return <FiLink className="w-4 h-4 text-purple-600" />;
+    if (a.includes('REVIEW')) return <FiStar className="w-4 h-4 text-amber-600" />;
+    if (a.includes('ANNOUNCEMENT') || a.includes('BANNER')) return <FiSend className="w-4 h-4 text-blue-600" />;
+    return <FiBell className="w-4 h-4 text-slate-600" />;
+  };
+
+  // Guard: ensure rawActivity is always an array regardless of API shape
+  const rawActivity = Array.isArray(stats?.recent_activity)
+    ? stats.recent_activity
+    : Array.isArray(activity)
+      ? activity
+      : [];
+  const recentActivities = rawActivity.map((item) => ({
+    id: item.id,
+    icon: getCategoryIcon(item.action || item.event_type),
+    description: item.description,
+    timestamp: new Date(item.created_at || item.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+    category: item.action || item.event_type,
+    actor: item.actor,
+  }));
+
+  // ─── Platform Activity Chart ─────────────────────────────────────────────
+  // Source: stats.platform_activity.timeline (already inside dashboard API response)
+  const rawTimeline = Array.isArray(stats?.platform_activity?.timeline)
+    ? stats.platform_activity.timeline
+    : [];
+
+  // Filter timeline entries by the selected range button
+  const filteredTimeline = (() => {
+    if (activeChartRange === '7d') return rawTimeline.slice(-7);
+    if (activeChartRange === '6m') return rawTimeline; // full set
+    return rawTimeline.slice(-30); // default 30d
+  })();
+
+  // SVG coordinate helpers
+  const C_W = 800; // viewBox width
+  const C_TOP = 20; // chart top padding
+  const C_BOT = 220; // chart baseline
+  const C_H = C_BOT - C_TOP; // drawable height
+
+  const chartSeriesKeys = ['student_registrations', 'teacher_registrations', 'batch_enrollments', 'protected_connections'];
+  const chartMax = Math.max(1, ...filteredTimeline.flatMap((d) => chartSeriesKeys.map((k) => d[k] || 0)));
+
+  const cX = (i) => (filteredTimeline.length <= 1 ? C_W / 2 : (i / (filteredTimeline.length - 1)) * C_W);
+  const cY = (val) => C_BOT - (val / chartMax) * C_H;
+
+  const makeLinePath = (key) => {
+    if (!filteredTimeline.length) return '';
+    return filteredTimeline.map((d, i) => `${i === 0 ? 'M' : 'L'} ${cX(i).toFixed(1)},${cY(d[key] || 0).toFixed(1)}`).join(' ');
+  };
+
+  const makeAreaPath = (key) => {
+    if (!filteredTimeline.length) return '';
+    const n = filteredTimeline.length;
+    const line = filteredTimeline.map((d, i) => `${cX(i).toFixed(1)},${cY(d[key] || 0).toFixed(1)}`).join(' L ');
+    return `M ${line} L ${cX(n - 1).toFixed(1)},${C_BOT} L ${cX(0).toFixed(1)},${C_BOT} Z`;
+  };
+
+  // X-axis: pick up to 6 evenly-spaced labels
+  const xLabels = (() => {
+    if (filteredTimeline.length <= 6) return filteredTimeline.map((d, i) => ({ label: d.label, i }));
+    const step = (filteredTimeline.length - 1) / 5;
+    return [0, 1, 2, 3, 4, 5].map((s) => {
+      const idx = Math.round(s * step);
+      return { label: filteredTimeline[idx]?.label, i: idx };
+    });
+  })();
+
+  // Non-zero data points to highlight on chart
+  const makeDataPoints = (key, color) =>
+    filteredTimeline
+      .map((d, i) => ({ x: cX(i), y: cY(d[key] || 0), val: d[key] || 0 }))
+      .filter((p) => p.val > 0);
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -297,7 +323,7 @@ export function DashboardOverview() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h2 className="text-base sm:text-lg font-bold font-geist">
-              Good morning, Super Admin
+              Good morning, {operator.name}
             </h2>
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
@@ -454,84 +480,67 @@ export function DashboardOverview() {
           </div>
         </div>
 
-        {/* Lightweight SVG Vector Chart */}
+        {/* Dynamic SVG Chart — driven by stats.platform_activity.timeline */}
         <div className="h-64 w-full relative pt-2">
           <svg className="w-full h-full overflow-visible" viewBox="0 0 800 240" preserveAspectRatio="none">
             <defs>
               <linearGradient id="studentGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#123B66" stopOpacity="0.25" />
+                <stop offset="0%" stopColor="#123B66" stopOpacity="0.2" />
                 <stop offset="100%" stopColor="#123B66" stopOpacity="0.0" />
               </linearGradient>
               <linearGradient id="enrollmentGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1D4ED8" stopOpacity="0.2" />
+                <stop offset="0%" stopColor="#1D4ED8" stopOpacity="0.15" />
                 <stop offset="100%" stopColor="#1D4ED8" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
             {/* Horizontal Gridlines */}
-            <line x1="0" y1="30" x2="800" y2="30" stroke="#f1f5f9" strokeWidth="1" />
-            <line x1="0" y1="80" x2="800" y2="80" stroke="#f1f5f9" strokeWidth="1" />
-            <line x1="0" y1="130" x2="800" y2="130" stroke="#f1f5f9" strokeWidth="1" />
-            <line x1="0" y1="180" x2="800" y2="180" stroke="#f1f5f9" strokeWidth="1" />
-            <line x1="0" y1="230" x2="800" y2="230" stroke="#e2e8f0" strokeWidth="1" />
+            {[30, 80, 130, 180].map((y) => (
+              <line key={y} x1="0" y1={y} x2="800" y2={y} stroke="#f1f5f9" strokeWidth="1" />
+            ))}
+            <line x1="0" y1="220" x2="800" y2="220" stroke="#e2e8f0" strokeWidth="1" />
 
             {/* Area Fills */}
-            <path
-              d="M 0,160 Q 120,120 240,140 T 480,90 T 720,60 L 800,45 L 800,230 L 0,230 Z"
-              fill="url(#studentGradient)"
-            />
-            <path
-              d="M 0,190 Q 140,170 280,160 T 560,120 T 800,90 L 800,230 L 0,230 Z"
-              fill="url(#enrollmentGradient)"
-            />
+            {filteredTimeline.length > 0 && (
+              <>
+                <path d={makeAreaPath('student_registrations')} fill="url(#studentGradient)" />
+                <path d={makeAreaPath('batch_enrollments')} fill="url(#enrollmentGradient)" />
+              </>
+            )}
 
-            {/* Series 1: Student Registrations (Navy) */}
-            <path
-              d="M 0,160 Q 120,120 240,140 T 480,90 T 720,60 L 800,45"
-              fill="none"
-              stroke="#123B66"
-              strokeWidth="2.5"
-            />
-            {/* Series 2: Teacher Registrations (Emerald) */}
-            <path
-              d="M 0,205 Q 160,195 320,185 T 640,160 L 800,150"
-              fill="none"
-              stroke="#16A34A"
-              strokeWidth="2"
-              strokeDasharray="4 3"
-            />
-            {/* Series 3: Batch Enrollments (Blue Accent) */}
-            <path
-              d="M 0,190 Q 140,170 280,160 T 560,120 T 800,90"
-              fill="none"
-              stroke="#1D4ED8"
-              strokeWidth="2.5"
-            />
-            {/* Series 4: Protected Connections (Purple) */}
-            <path
-              d="M 0,215 Q 180,200 360,195 T 720,175 L 800,168"
-              fill="none"
-              stroke="#9333EA"
-              strokeWidth="2"
-            />
+            {/* Series Lines */}
+            {filteredTimeline.length > 0 ? (
+              <>
+                <path d={makeLinePath('student_registrations')} fill="none" stroke="#123B66" strokeWidth="2.5" strokeLinejoin="round" />
+                <path d={makeLinePath('teacher_registrations')} fill="none" stroke="#16A34A" strokeWidth="2" strokeDasharray="4 3" strokeLinejoin="round" />
+                <path d={makeLinePath('batch_enrollments')} fill="none" stroke="#1D4ED8" strokeWidth="2.5" strokeLinejoin="round" />
+                <path d={makeLinePath('protected_connections')} fill="none" stroke="#9333EA" strokeWidth="2" strokeLinejoin="round" />
+              </>
+            ) : (
+              // No data placeholder line at baseline
+              <text x="400" y="130" textAnchor="middle" fill="#94a3b8" fontSize="12">No activity data for this range</text>
+            )}
 
-            {/* Interactive Data Points */}
-            <circle cx="240" cy="140" r="4" fill="#123B66" stroke="#FFFFFF" strokeWidth="2" />
-            <circle cx="480" cy="90" r="4" fill="#123B66" stroke="#FFFFFF" strokeWidth="2" />
-            <circle cx="720" cy="60" r="4" fill="#123B66" stroke="#FFFFFF" strokeWidth="2" />
-
-            <circle cx="280" cy="160" r="4" fill="#1D4ED8" stroke="#FFFFFF" strokeWidth="2" />
-            <circle cx="560" cy="120" r="4" fill="#1D4ED8" stroke="#FFFFFF" strokeWidth="2" />
+            {/* Data Point Circles — only on non-zero values */}
+            {makeDataPoints('student_registrations', '#123B66').map((p, i) => (
+              <circle key={`sr-${i}`} cx={p.x} cy={p.y} r="4" fill="#123B66" stroke="#FFFFFF" strokeWidth="2" />
+            ))}
+            {makeDataPoints('batch_enrollments', '#1D4ED8').map((p, i) => (
+              <circle key={`be-${i}`} cx={p.x} cy={p.y} r="4" fill="#1D4ED8" stroke="#FFFFFF" strokeWidth="2" />
+            ))}
+            {makeDataPoints('teacher_registrations', '#16A34A').map((p, i) => (
+              <circle key={`tr-${i}`} cx={p.x} cy={p.y} r="3.5" fill="#16A34A" stroke="#FFFFFF" strokeWidth="2" />
+            ))}
+            {makeDataPoints('protected_connections', '#9333EA').map((p, i) => (
+              <circle key={`pc-${i}`} cx={p.x} cy={p.y} r="3.5" fill="#9333EA" stroke="#FFFFFF" strokeWidth="2" />
+            ))}
           </svg>
 
-          {/* X Axis Labels */}
+          {/* Dynamic X Axis Labels */}
           <div className="flex justify-between text-[11px] font-mono text-slate-400 mt-2 px-1">
-            <span>Sep 01</span>
-            <span>Sep 06</span>
-            <span>Sep 11</span>
-            <span>Sep 16</span>
-            <span>Sep 21</span>
-            <span>Today (Sep 23)</span>
+            {xLabels.map((l, idx) => (
+              <span key={idx}>{l.label}</span>
+            ))}
           </div>
         </div>
       </div>

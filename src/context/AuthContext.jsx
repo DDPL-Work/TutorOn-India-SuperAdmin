@@ -1,57 +1,67 @@
 import { useState } from 'react';
 import { AuthContext } from './auth-context';
-import { AUTH_STORAGE_KEY, DEFAULT_SUPER_ADMIN, DEMO_CREDENTIALS } from '../data/mockAuth';
+import { fetchApi } from '../API/apiClient';
+
+const AUTH_STORAGE_KEY = 'tutoron_super_admin_auth';
 
 export { AuthContext };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY) || sessionStorage.getItem(AUTH_STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed.user) {
+          parsed.user.name = `${parsed.user.first_name || ''} ${parsed.user.last_name || ''}`.trim() || parsed.user.email;
+          return parsed.user;
+        }
+        return parsed;
       }
     } catch (e) {
       console.error('Failed to restore auth session:', e);
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
     }
     return null;
   });
 
-  const [isLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const login = async (email, password, rememberMe = true) => {
     if (!email || !password) {
       throw new Error('Please provide both email and password.');
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      throw new Error('Please enter a valid administrative email address.');
+    setIsLoading(true);
+    try {
+      const data = await fetchApi('/auth/login/', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      if (data.success && data.data) {
+        const authPayload = data.data; // { access, refresh, user }
+        if (rememberMe) {
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
+        } else {
+          sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
+        }
+        if (authPayload.user) {
+          authPayload.user.name = `${authPayload.user.first_name || ''} ${authPayload.user.last_name || ''}`.trim() || authPayload.user.email;
+          setUser(authPayload.user);
+        } else {
+          setUser(authPayload);
+        }
+        return authPayload;
+      } else {
+        throw new Error(data.message || 'Login failed.');
+      }
+    } catch (e) {
+      throw new Error(e.message || 'Login failed.');
+    } finally {
+      setIsLoading(false);
     }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const isDemoEmail = normalizedEmail === DEMO_CREDENTIALS.email.toLowerCase();
-
-    if (isDemoEmail && password !== DEMO_CREDENTIALS.password) {
-      throw new Error('Invalid Super Admin credentials. Please check your password.');
-    }
-
-    const authPayload = {
-      ...DEFAULT_SUPER_ADMIN,
-      email: normalizedEmail,
-      name: isDemoEmail ? DEFAULT_SUPER_ADMIN.name : 'Super Admin',
-      loggedInAt: new Date().toISOString(),
-    };
-
-    if (rememberMe) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
-    } else {
-      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
-    }
-
-    setUser(authPayload);
-    return authPayload;
   };
 
   const logout = () => {

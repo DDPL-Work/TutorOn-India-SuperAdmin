@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchAuditLogs } from '../../API/thunks/auditThunks';
 import {
   FiShield,
   FiEye,
@@ -13,13 +15,16 @@ import Button from '../../components/ui/Button';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
-import { INITIAL_AUDIT_LOGS } from '../../data/auditLogs';
+
 
 export function AuditLogsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const tableRef = useRef(null);
-  const [auditLogs] = useState(INITIAL_AUDIT_LOGS);
+  
+  const { data: allLogs, totalCount, isLoading } = useSelector((state) => state.audit);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
 
@@ -27,34 +32,33 @@ export function AuditLogsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Filtered dataset
-  const filteredLogs = useMemo(() => {
-    return auditLogs.filter((item) => {
-      if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
+  // Fetch data
+  useEffect(() => {
+    dispatch(fetchAuditLogs({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      category: categoryFilter === 'ALL' ? undefined : categoryFilter
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, categoryFilter]);
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchId = item.id.toLowerCase().includes(q);
-        const matchAction = item.action.toLowerCase().includes(q);
-        const matchAdmin = item.admin.toLowerCase().includes(q);
-        const matchUser = item.userId.toLowerCase().includes(q);
-        const matchEntity = item.relatedEntity.toLowerCase().includes(q);
-        const matchReason = item.reason.toLowerCase().includes(q);
-        if (!matchId && !matchAction && !matchAdmin && !matchUser && !matchEntity && !matchReason) {
-          return false;
-        }
-      }
+  // Map data
+  const auditLogs = (allLogs || []).map(r => ({
+    id: r.audit_code || r.id,
+    actualId: r.id,
+    action: r.action || 'Unknown Action',
+    category: r.category || 'Other',
+    admin: r.actor_name || r.actor_email || 'System',
+    ipAddress: r.ip_address || 'N/A',
+    relatedEntity: r.description || r.target_entity || 'N/A',
+    userId: r.object_id || r.object_type || '',
+    timestamp: r.timestamp || (r.created_at ? r.created_at.split('T')[0] : 'N/A'),
+    reason: r.notes || r.action || '',
+  }));
 
-      return true;
-    });
-  }, [auditLogs, categoryFilter, searchQuery]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredLogs.length / pageSize) || 1;
-  const paginatedLogs = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredLogs.slice(start, start + pageSize);
-  }, [filteredLogs, currentPage, pageSize]);
+  const filteredLogs = auditLogs;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedLogs = filteredLogs;
 
   // Columns definition
   const columns = [
@@ -140,7 +144,7 @@ export function AuditLogsList() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/audit-logs/${row.id}`)}
+            onClick={() => navigate(`/audit-logs/${row.actualId}`)}
             leftIcon={<FiEye className="w-3.5 h-3.5" />}
             className="h-7 text-xs px-2.5"
           >
@@ -161,7 +165,7 @@ export function AuditLogsList() {
           <div className="flex items-center gap-2">
             <Badge variant="navy" size="md" className="gap-1.5 py-1 px-3 font-mono">
               <FiShield className="w-3.5 h-3.5 text-[#123B66]" />
-              <span>{auditLogs.length} Logged Events</span>
+              <span>{totalCount} Logged Events</span>
             </Badge>
           </div>
         }
@@ -240,7 +244,7 @@ export function AuditLogsList() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredLogs.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {

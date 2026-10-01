@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchPayments } from '../../API/thunks/paymentsThunks';
 import {
   FiCreditCard,
   FiCheckCircle,
@@ -18,13 +20,15 @@ import Button from '../../components/ui/Button';
 import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
-import { INITIAL_PAYMENTS } from '../../data/payments';
+
 
 export function PaymentsList() {
   const navigate = useNavigate();
 
   const tableRef = useRef(null);
-  const [payments] = useState(INITIAL_PAYMENTS);
+  const dispatch = useDispatch();
+  const { data: payments, totalCount, successfulCount, pendingCount, failedCount, totalRevenue, isLoading } = useSelector((state) => state.payments);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -33,42 +37,28 @@ export function PaymentsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // High-level telemetry stats
-  const totalRevenue = useMemo(() => {
-    return payments
-      .filter((p) => p.status === 'Successful')
-      .reduce((acc, curr) => acc + curr.numericAmount, 0);
-  }, [payments]);
+  useEffect(() => {
+    let apiStatus = undefined;
+    if (statusFilter !== 'ALL') apiStatus = statusFilter.toUpperCase();
 
-  const successfulCount = payments.filter((p) => p.status === 'Successful').length;
-  const pendingCount = payments.filter((p) => p.status === 'Pending').length;
-  const failedCount = payments.filter((p) => p.status === 'Failed').length;
+    let apiMethod = undefined;
+    if (methodFilter !== 'ALL') apiMethod = methodFilter;
 
-  // Filtered dataset
-  const filteredPayments = useMemo(() => {
-    return payments.filter((item) => {
-      if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
-      if (methodFilter !== 'ALL' && item.paymentMethod !== methodFilter) return false;
+    dispatch(fetchPayments({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      status: apiStatus,
+      method: apiMethod
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, statusFilter, methodFilter]);
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchId = item.id.toLowerCase().includes(q);
-        const matchStudent = item.student.name.toLowerCase().includes(q);
-        const matchBatch = item.batch.name.toLowerCase().includes(q) || item.batch.code.toLowerCase().includes(q);
-        const matchMethod = item.paymentMethod.toLowerCase().includes(q);
-        if (!matchId && !matchStudent && !matchBatch && !matchMethod) return false;
-      }
+  // Filtered dataset handled by API
+  const filteredPayments = payments || [];
 
-      return true;
-    });
-  }, [payments, statusFilter, methodFilter, searchQuery]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredPayments.length / pageSize) || 1;
-  const paginatedPayments = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredPayments.slice(start, start + pageSize);
-  }, [filteredPayments, currentPage, pageSize]);
+  // Pagination calculation handled by API
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedPayments = filteredPayments;
 
   // Table Columns
   const columns = [
@@ -95,12 +85,12 @@ export function PaymentsList() {
       header: 'Student',
       render: (row) => (
         <div className="flex items-center gap-3">
-          <Avatar name={row.student.name} src={row.student.avatar} size="sm" />
+          <Avatar name={row.student?.name || row.student_name || 'N/A'} src={row.student?.avatar} size="sm" />
           <div className="min-w-0">
             <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-              {row.student.name}
+              {row.student?.name || row.student_name || 'N/A'}
             </p>
-            <span className="text-[11px] text-slate-500 block font-mono mt-0.5">{row.student.id}</span>
+            <span className="text-[11px] text-slate-500 block font-mono mt-0.5">{row.student?.id || row.student_id || 'N/A'}</span>
           </div>
         </div>
       ),
@@ -110,10 +100,10 @@ export function PaymentsList() {
       header: 'Batch Details',
       render: (row) => (
         <div className="max-w-[200px]">
-          <div className="text-xs font-medium text-slate-900 truncate" title={row.batch.name}>
-            {row.batch.name}
+          <div className="text-xs font-medium text-slate-900 truncate" title={row.batch?.name || row.batch_name}>
+            {row.batch?.name || row.batch_name || 'N/A'}
           </div>
-          <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.batch.code}</span>
+          <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.batch?.code || row.batch_code || 'N/A'}</span>
         </div>
       ),
     },
@@ -127,16 +117,16 @@ export function PaymentsList() {
           </span>
           <span
             className={`text-[10px] font-medium px-1.5 py-0.2 rounded border inline-block mt-0.5 ${
-              row.paymentMethod === 'UPI'
+              (row.paymentMethod || row.payment_method) === 'UPI'
                 ? 'bg-purple-50 text-purple-700 border-purple-200'
-                : row.paymentMethod === 'Credit Card'
+                : (row.paymentMethod || row.payment_method) === 'Credit Card'
                 ? 'bg-blue-50 text-blue-700 border-blue-200'
-                : row.paymentMethod === 'Debit Card'
+                : (row.paymentMethod || row.payment_method) === 'Debit Card'
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : 'bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
-            {row.paymentMethod}
+            {row.paymentMethod || row.payment_method}
           </span>
         </div>
       ),
@@ -144,7 +134,7 @@ export function PaymentsList() {
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <StatusBadge status={row.status} />,
+      render: (row) => <StatusBadge status={row.status === 'SUCCESS' || row.status === 'SUCCESSFUL' ? 'Successful' : row.status === 'FAILED' ? 'Failed' : row.status === 'REFUNDED' ? 'Refunded' : 'Pending'} />,
     },
     {
       key: 'actions',
@@ -310,7 +300,7 @@ export function PaymentsList() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredPayments.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {

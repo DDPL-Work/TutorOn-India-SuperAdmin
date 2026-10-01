@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { fetchTeacherById, approveTeacher, rejectTeacher } from '../../API/thunks/teachersThunks';
 import {
   FiArrowLeft,
   FiMail,
@@ -25,7 +27,7 @@ import Avatar from '../../components/ui/Avatar';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_TEACHERS } from '../../data/teachers';
+
 import { formatDate } from '../../utils/formatters';
 
 export function TeacherDetails() {
@@ -33,9 +35,22 @@ export function TeacherDetails() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [teacher, setTeacher] = useState(() => {
-    return INITIAL_TEACHERS.find((t) => t.id === id) || null;
-  });
+  const dispatch = useDispatch();
+  const [teacher, setTeacher] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    setIsLoading(true);
+    dispatch(fetchTeacherById(id))
+      .unwrap()
+      .then((data) => setTeacher(data))
+      .catch((err) => {
+        toast.error('Fetch Failed', err?.toString() || 'Could not fetch teacher details.');
+        setTeacher(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, [dispatch, id]);
 
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -45,6 +60,14 @@ export function TeacherDetails() {
     type: 'approve', // 'approve' | 'reject'
     notes: '',
   });
+
+  if (isLoading) {
+    return (
+      <div className="py-12 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#123B66]"></div>
+      </div>
+    );
+  }
 
   if (!teacher) {
     return (
@@ -86,36 +109,35 @@ export function TeacherDetails() {
   };
 
   // Confirm Verification Action
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, notes } = actionModal;
-    const nextStatus = type === 'approve' ? 'Verified' : 'Rejected';
-
-    const newAudit = {
-      id: `AUD-${Date.now()}`,
-      action: type === 'approve' ? 'Faculty Verified' : 'Faculty Verification Declined',
-      by: 'Super Admin',
-      timestamp: new Date().toISOString(),
-      notes,
-    };
-
-    setTeacher((prev) => ({
-      ...prev,
-      verificationStatus: nextStatus,
-      verificationAudit: [newAudit, ...(prev.verificationAudit || [])],
-    }));
-
-    setActionModal({ isOpen: false, type: 'approve', notes: '' });
-
-    if (type === 'approve') {
-      toast.success(
-        'Teacher Certified & Verified',
-        `${teacher.name} has been granted full faculty publishing credentials.`
-      );
-    } else {
-      toast.error(
-        'Verification Declined',
-        `${teacher.name} status updated to Rejected. Resubmission notification dispatched.`
-      );
+    
+    try {
+      if (type === 'approve') {
+        await dispatch(approveTeacher({ id, admin_notes: notes })).unwrap();
+        toast.success(
+          'Teacher Certified & Verified',
+          `${teacher.display_name || teacher.first_name || 'Teacher'} has been granted full faculty publishing credentials.`
+        );
+      } else {
+        await dispatch(rejectTeacher({ id, rejection_reason: notes, admin_note: 'Rejected via dashboard' })).unwrap();
+        toast.error(
+          'Verification Declined',
+          `${teacher.display_name || teacher.first_name || 'Teacher'} status updated to Rejected. Resubmission notification dispatched.`
+        );
+      }
+      
+      // Re-fetch to get updated status and audit logs
+      setIsLoading(true);
+      dispatch(fetchTeacherById(id))
+        .unwrap()
+        .then((data) => setTeacher(data))
+        .finally(() => setIsLoading(false));
+        
+    } catch (err) {
+      toast.error(`${type === 'approve' ? 'Approval' : 'Rejection'} Failed`, err?.toString() || 'Action could not be completed.');
+    } finally {
+      setActionModal({ isOpen: false, type: 'approve', notes: '' });
     }
   };
 
@@ -142,28 +164,28 @@ export function TeacherDetails() {
               <FiArrowLeft className="w-4 h-4" />
             </button>
 
-            <Avatar name={teacher.name} size="lg" status="online" />
+            <Avatar name={teacher.display_name || teacher.first_name || ''} size="lg" status="online" />
 
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl sm:text-2xl font-bold font-geist text-slate-900">
-                  {teacher.name}
+                  {teacher.display_name || `${teacher.first_name || ''} ${teacher.last_name || ''}`}
                 </h1>
                 <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
                   {teacher.id}
                 </span>
-                <StatusBadge status={teacher.verificationStatus} />
+                <StatusBadge status={teacher.verification_status || teacher.verificationStatus} />
               </div>
 
               <div className="flex items-center gap-3 sm:gap-4 flex-wrap mt-1 text-xs text-slate-500">
-                <span className="font-medium text-slate-700">{teacher.qualification.split(',')[0]}</span>
+                <span className="font-medium text-slate-700">{teacher.headline || teacher.qualification || 'N/A'}</span>
                 <span>·</span>
                 <span className="flex items-center gap-1">
                   <FiMapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {teacher.city}, {teacher.state}
+                  {teacher.city || 'City'}, {teacher.state || 'State'}
                 </span>
                 <span>·</span>
-                <span className="font-mono text-[11px]">Applied {formatDate(teacher.joinedDate)}</span>
+                <span className="font-mono text-[11px]">Applied {teacher.created_at ? formatDate(teacher.created_at) : (teacher.date_joined ? formatDate(teacher.date_joined) : 'N/A')}</span>
               </div>
             </div>
           </div>
@@ -179,7 +201,7 @@ export function TeacherDetails() {
               Export
             </Button>
 
-            {teacher.verificationStatus === 'Pending Verification' && (
+            {teacher.verification_status === 'PENDING_VERIFICATION' && (
               <>
                 <Button
                   variant="danger"
@@ -200,7 +222,7 @@ export function TeacherDetails() {
               </>
             )}
 
-            {teacher.verificationStatus === 'Verified' && (
+            {teacher.verification_status === 'VERIFIED' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -211,7 +233,7 @@ export function TeacherDetails() {
               </Button>
             )}
 
-            {teacher.verificationStatus === 'Rejected' && (
+            {teacher.verification_status === 'REJECTED' && (
               <Button
                 variant="success"
                 size="sm"
@@ -231,7 +253,7 @@ export function TeacherDetails() {
               Teaching Experience
             </span>
             <span className="text-sm sm:text-base font-bold font-geist text-slate-900 mt-0.5 block truncate">
-              {teacher.experience}
+              {teacher.experience_years ? `${teacher.experience_years} Years` : (teacher.experience || 'N/A')}
             </span>
           </div>
 
@@ -241,10 +263,10 @@ export function TeacherDetails() {
             </span>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xl font-bold font-geist text-slate-900">
-                {teacher.rating.toFixed(2)}
+                {teacher.average_rating ? parseFloat(teacher.average_rating).toFixed(2) : (teacher.rating ? parseFloat(teacher.rating).toFixed(2) : '0.00')}
               </span>
               <FiStar className="w-4 h-4 text-amber-500 fill-amber-500" />
-              <span className="text-xs text-slate-400 font-mono">({teacher.ratingCount} reviews)</span>
+              <span className="text-xs text-slate-400 font-mono">({teacher.total_reviews || teacher.ratingCount || 0} reviews)</span>
             </div>
           </div>
 
@@ -253,7 +275,7 @@ export function TeacherDetails() {
               Students Mentored
             </span>
             <span className="text-xl font-bold font-geist text-emerald-700 mt-0.5 block font-mono">
-              {teacher.studentsTaught.toLocaleString('en-IN')}
+              {(teacher.total_students || teacher.studentsTaught || 0).toLocaleString('en-IN')}
             </span>
           </div>
 
@@ -262,7 +284,7 @@ export function TeacherDetails() {
               Compliance Status
             </span>
             <div className="mt-1">
-              <StatusBadge status={teacher.verificationStatus} />
+              <StatusBadge status={teacher.verification_status || teacher.verificationStatus} />
             </div>
           </div>
         </div>
@@ -296,7 +318,7 @@ export function TeacherDetails() {
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50/70 p-4 rounded-lg border border-slate-100">
-              "{teacher.bio}"
+              "{teacher.bio || 'No biography provided yet.'}"
             </p>
 
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider pt-2">
@@ -308,7 +330,7 @@ export function TeacherDetails() {
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Email Address</span>
                 <p className="font-medium text-slate-800 mt-0.5 flex items-center gap-1.5">
                   <FiMail className="w-3.5 h-3.5 text-slate-400" />
-                  {teacher.email}
+                  {teacher.email || 'N/A'}
                 </p>
               </div>
 
@@ -316,21 +338,21 @@ export function TeacherDetails() {
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Direct Phone</span>
                 <p className="font-mono font-medium text-slate-800 mt-0.5 flex items-center gap-1.5">
                   <FiPhone className="w-3.5 h-3.5 text-slate-400" />
-                  {teacher.phone}
+                  {teacher.phone_number || teacher.phone || 'N/A'}
                 </p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Base Hourly Rate</span>
                 <p className="font-semibold text-slate-900 text-sm mt-0.5">
-                  ₹{teacher.hourlyRate.toLocaleString('en-IN')} / hr
+                  ₹{Number(teacher.hourly_rate || teacher.hourlyRate || 0).toLocaleString('en-IN')} / hr
                 </p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Language Fluency</span>
                 <p className="font-medium text-slate-800 mt-0.5">
-                  {teacher.languages.join(', ')}
+                  {(teacher.teaching_languages || teacher.languages || []).length ? (teacher.teaching_languages || teacher.languages).join(', ') : 'Hindi, English'}
                 </p>
               </div>
             </div>
@@ -346,8 +368,8 @@ export function TeacherDetails() {
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-slate-50">
                 <span className="text-slate-500">KYC Status</span>
-                <Badge variant={teacher.verificationStatus === 'Verified' ? 'success' : 'warning'} size="sm" dot>
-                  {teacher.verificationStatus}
+                <Badge variant={teacher.verification_status === 'VERIFIED' ? 'success' : 'warning'} size="sm" dot>
+                  {teacher.verification_status || teacher.verificationStatus}
                 </Badge>
               </div>
 
@@ -424,7 +446,7 @@ export function TeacherDetails() {
             ))}
           </div>
 
-          {teacher.verificationStatus === 'Pending Verification' && (
+          {teacher.verification_status === 'PENDING_VERIFICATION' && (
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4">
               <div className="flex items-center gap-3">
                 <FiClock className="w-5 h-5 text-amber-700 shrink-0" />
@@ -458,7 +480,7 @@ export function TeacherDetails() {
               Teaching Subjects
             </h2>
             <div className="flex flex-wrap gap-2">
-              {teacher.subjects.map((sub, i) => (
+              {(teacher.subjects || []).map((sub, i) => (
                 <span
                   key={i}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-[#123B66] border border-blue-200"
@@ -477,7 +499,7 @@ export function TeacherDetails() {
               Competitive Exam Specialization
             </h2>
             <div className="flex flex-wrap gap-2">
-              {teacher.examExpertise.map((exam, i) => (
+              {(teacher.examExpertise || []).map((exam, i) => (
                 <span
                   key={i}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"

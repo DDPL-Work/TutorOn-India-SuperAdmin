@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchEnrollments } from '../../API/thunks/enrollmentsThunks';
 import {
   FiCheckCircle,
   FiEye,
@@ -23,7 +25,7 @@ import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_ENROLLMENTS } from '../../data/enrollments';
+import { formatDate } from '../../utils/formatters';
 
 export function EnrollmentsList() {
   const navigate = useNavigate();
@@ -31,7 +33,9 @@ export function EnrollmentsList() {
   const toast = useToast();
 
   const tableRef = useRef(null);
-  const [enrollments, setEnrollments] = useState(INITIAL_ENROLLMENTS);
+  const dispatch = useDispatch();
+  const { data: enrollments, totalCount, pendingCount, confirmedCount, rejectedCount, isLoading } = useSelector((state) => state.enrollments);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
 
@@ -54,67 +58,46 @@ export function EnrollmentsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  useEffect(() => {
+    let apiStatus = undefined;
+    if (activeTab === 'payment_pending') apiStatus = 'PENDING';
+    if (activeTab === 'confirmed') apiStatus = 'CONFIRMED';
+    if (activeTab === 'rejected') apiStatus = 'REJECTED';
+
+    dispatch(fetchEnrollments({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      status: apiStatus
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, activeTab, paymentFilter]);
+
   // Tab definitions
   const tabs = [
-    { key: 'all', label: 'All Enrollments', count: enrollments.length },
+    { key: 'all', label: 'All Enrollments', count: totalCount },
     {
       key: 'payment_pending',
       label: 'Payment Pending',
-      count: enrollments.filter((e) => e.status === 'Payment Pending' || e.paymentStatus === 'Payment Pending').length,
+      count: pendingCount,
     },
     {
       key: 'confirmed',
       label: 'Confirmed',
-      count: enrollments.filter((e) => e.status === 'Confirmed').length,
+      count: confirmedCount,
     },
     {
       key: 'rejected',
       label: 'Rejected',
-      count: enrollments.filter((e) => e.status === 'Rejected').length,
+      count: rejectedCount,
     },
   ];
 
-  // Filtering
-  const filteredEnrollments = useMemo(() => {
-    return enrollments.filter((item) => {
-      // Tab filter
-      if (activeTab === 'payment_pending' && item.status !== 'Payment Pending' && item.paymentStatus !== 'Payment Pending') {
-        return false;
-      }
-      if (activeTab === 'confirmed' && item.status !== 'Confirmed') {
-        return false;
-      }
-      if (activeTab === 'rejected' && item.status !== 'Rejected') {
-        return false;
-      }
+  // Filtering is handled by API
+  const filteredEnrollments = enrollments || [];
 
-      // Payment filter dropdown
-      if (paymentFilter !== 'ALL' && item.paymentStatus !== paymentFilter) {
-        return false;
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchId = item.id.toLowerCase().includes(q);
-        const matchStudent = item.student.name.toLowerCase().includes(q) || item.student.id.toLowerCase().includes(q);
-        const matchTeacher = item.teacher.name.toLowerCase().includes(q);
-        const matchBatch = item.batch.title.toLowerCase().includes(q) || item.batch.batchCode.toLowerCase().includes(q);
-        if (!matchId && !matchStudent && !matchTeacher && !matchBatch) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [enrollments, activeTab, paymentFilter, searchQuery]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredEnrollments.length / pageSize) || 1;
-  const paginatedEnrollments = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredEnrollments.slice(start, start + pageSize);
-  }, [filteredEnrollments, currentPage, pageSize]);
+  // Pagination calculation handled by API
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedEnrollments = filteredEnrollments;
 
   // Table Columns
   const columns = [
@@ -123,16 +106,16 @@ export function EnrollmentsList() {
       header: 'Student & ID',
       render: (row) => (
         <div className="flex items-center gap-3 whitespace-nowrap">
-          <Avatar name={row.student.name} src={row.student.avatar} size="sm" />
+          <Avatar name={row.student_name || 'N/A'} src={row.student_avatar} size="sm" />
           <div>
             <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-              {row.student.name}
+              {row.student_name || 'N/A'}
             </p>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
               <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
-                {row.id}
+                {row.enrollment_code || row.id.substring(0, 8)}
               </span>
-              <span>{row.student.grade}</span>
+              <span>{row.student_grade || 'N/A'}</span>
             </div>
           </div>
         </div>
@@ -143,13 +126,13 @@ export function EnrollmentsList() {
       header: 'Batch & Subject',
       render: (row) => (
         <div className="min-w-[190px] max-w-[250px]">
-          <div className="text-xs font-medium text-slate-900" title={row.batch.title}>
-            {row.batch.title}
+          <div className="text-xs font-medium text-slate-900" title={row.batch_title}>
+            {row.batch_title || 'N/A'}
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-            <span className="font-mono text-[10px] text-slate-400">{row.batch.batchCode}</span>
+            <span className="font-mono text-[10px] text-slate-400">{row.batch_code || 'N/A'}</span>
             <span>•</span>
-            <span className="font-semibold text-slate-700">{row.batch.fee}</span>
+            <span className="font-semibold text-slate-700">{row.formatted_price || 'N/A'}</span>
           </div>
         </div>
       ),
@@ -159,12 +142,12 @@ export function EnrollmentsList() {
       header: 'Teacher',
       render: (row) => (
         <div className="flex items-center gap-2.5 whitespace-nowrap min-w-[130px]">
-          <Avatar name={row.teacher.name} src={row.teacher.avatar} size="xs" />
+          <Avatar name={row.teacher_name || 'N/A'} src={row.teacher_avatar} size="xs" />
           <div>
             <p className="text-xs font-medium text-slate-900">
-              {row.teacher.name}
+              {row.teacher_name || 'N/A'}
             </p>
-            <span className="text-[10px] text-slate-500 block">{row.batch.subject}</span>
+            <span className="text-[10px] text-slate-500 block">{row.teacher_subject || 'N/A'}</span>
           </div>
         </div>
       ),
@@ -173,23 +156,23 @@ export function EnrollmentsList() {
       key: 'requestDate',
       header: 'Date',
       className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
-      render: (row) => row.requestDate,
+      render: (row) => row.requested_at ? formatDate(row.requested_at) : 'N/A',
     },
     {
       key: 'status',
       header: 'Status & Payment',
       render: (row) => (
         <div className="space-y-1">
-          <StatusBadge status={row.status} />
+          <StatusBadge status={row.status === 'ACTIVE' ? 'Confirmed' : row.status === 'REJECTED' || row.status === 'CANCELLED' ? 'Rejected' : 'Pending'} />
           <div>
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded font-medium border inline-block ${
-                row.paymentStatus === 'Paid'
+                row.payment_status === 'PAID'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}
             >
-              {row.paymentStatus}
+              {row.payment_status === 'PAID' ? 'Paid' : 'Payment Pending'}
             </span>
           </div>
         </div>
@@ -336,7 +319,7 @@ export function EnrollmentsList() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredEnrollments.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {
@@ -348,7 +331,6 @@ export function EnrollmentsList() {
           </>
         ) : (
           <EmptyState
-            icon={FiBookOpen}
             title="No enrollments found"
             description={
               searchQuery || paymentFilter !== 'ALL' || activeTab !== 'all'

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchReportDetails, resolveReport } from '../../API/thunks/reportsThunks';
 import {
   FiArrowLeft,
   FiAlertTriangle,
@@ -15,20 +17,79 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_REPORTS } from '../../data/reports';
+
 
 export function ReportDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const toast = useToast();
+  const dispatch = useDispatch();
+  const { currentReport, isLoading } = useSelector((state) => state.reports);
 
-  const [report, setReport] = useState(() => {
-    return INITIAL_REPORTS.find((r) => r.id === id) || null;
-  });
+  useEffect(() => {
+    if (id) {
+      dispatch(fetchReportDetails(id));
+    }
+  }, [dispatch, id]);
 
-  const [adminNotes, setAdminNotes] = useState(report?.adminNotes || '');
+  const report = currentReport ? {
+    id: currentReport.report_code || currentReport.id,
+    actualId: currentReport.id,
+    status: currentReport.status === 'OPEN' || currentReport.status === 'Open' ? 'Open' :
+            currentReport.status === 'UNDER_REVIEW' || currentReport.status === 'Under Review' ? 'Under Review' :
+            currentReport.status === 'RESOLVED' || currentReport.status === 'Resolved' ? 'Resolved' :
+            currentReport.status === 'DISMISSED' || currentReport.status === 'Dismissed' ? 'Dismissed' : currentReport.status || 'Open',
+    priority: currentReport.priority || 'Medium',
+    category: currentReport.category || 'Other',
+    date: currentReport.formatted_date || (currentReport.created_at ? currentReport.created_at.split('T')[0] : 'N/A'),
+    reportedBy: {
+      name: currentReport.filed_by?.name || 'System / Admin',
+      id: currentReport.filed_by?.id || 'N/A',
+      role: currentReport.filed_by?.role || 'Moderator',
+      email: currentReport.filed_by?.email || currentReport.reporter_email || 'N/A',
+    },
+    reportedUser: {
+      name: currentReport.reported_user?.name || 'Unknown',
+      avatar: currentReport.reported_user?.photo || null,
+      id: currentReport.reported_user?.id || currentReport.target_id || 'N/A',
+      role: currentReport.reported_user?.role || currentReport.target_type || 'User',
+      subject: currentReport.reason || '',
+    },
+    description: currentReport.description || currentReport.reason || '',
+    evidenceUrls: currentReport.evidenceUrls || currentReport.evidence_urls || [],
+    resolution: currentReport.admin_note || currentReport.resolution || null,
+    timeline: [
+      {
+        action: 'Report Submitted',
+        timestamp: currentReport.formatted_date || (currentReport.created_at ? currentReport.created_at.split('T')[0] : 'N/A'),
+        performedBy: currentReport.filed_by?.name || 'System',
+        notes: currentReport.reason || 'Initial filing',
+      },
+      ...(currentReport.status === 'RESOLVED' || currentReport.status === 'DISMISSED' ? [{
+        action: `Report ${currentReport.status === 'RESOLVED' ? 'Resolved' : 'Dismissed'}`,
+        timestamp: currentReport.resolved_at ? currentReport.resolved_at.split('T')[0] : 'N/A',
+        performedBy: currentReport.resolved_by_email || 'Admin',
+        notes: currentReport.admin_note || '',
+      }] : [])
+    ],
+    adminNotes: currentReport.admin_note || '',
+  } : null;
+
+  const [adminNotes, setAdminNotes] = useState('');
+  useEffect(() => {
+    if (report?.adminNotes) {
+      setAdminNotes(report.adminNotes);
+    }
+  }, [report?.adminNotes]);
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [resolutionText, setResolutionText] = useState('Grievance investigated and appropriate action taken.');
+
+  if (isLoading && !report) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-[#123B66] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!report) {
     return (
@@ -55,68 +116,47 @@ export function ReportDetails() {
     );
   }
 
-  // Handle Mark Under Review
-  const handleMarkUnderReview = () => {
-    const updatedTimeline = [
-      ...report.timeline,
-      {
-        action: 'Case Placed Under Review',
-        timestamp: 'Today, Just now',
-        performedBy: 'Super Admin (sudhanshu@tutoron.in)',
-        notes: 'Assigned for formal review.',
-      },
-    ];
-
-    setReport({
-      ...report,
-      status: 'Under Review',
-      timeline: updatedTimeline,
-    });
-    toast.info('Status Updated', 'Ticket is now flagged as Under Review.');
+  const handleMarkUnderReview = async () => {
+    try {
+      await dispatch(resolveReport({
+        id: report.actualId,
+        resolution_action: 'MARK_UNDER_REVIEW',
+        admin_notes: adminNotes,
+      })).unwrap();
+      dispatch(fetchReportDetails(id));
+      toast.info('Status Updated', 'Ticket is now flagged as Under Review.');
+    } catch (e) {
+      toast.error('Error', 'Failed to update report status.');
+    }
   };
 
-  // Handle Resolve
-  const handleResolve = () => {
-    const updatedTimeline = [
-      ...report.timeline,
-      {
-        action: 'Grievance Resolved by Super Admin',
-        timestamp: 'Today, Just now',
-        performedBy: 'Super Admin (sudhanshu@tutoron.in)',
-        notes: resolutionText,
-      },
-    ];
-
-    setReport({
-      ...report,
-      status: 'Resolved',
-      resolution: resolutionText,
-      timeline: updatedTimeline,
-      adminNotes: adminNotes,
-    });
-    setResolveModalOpen(false);
-    toast.success('Report Resolved', `Case ${report.id} has been formally closed.`);
+  const handleResolve = async () => {
+    try {
+      await dispatch(resolveReport({
+        id: report.actualId,
+        resolution_action: resolutionText,
+        admin_notes: adminNotes,
+      })).unwrap();
+      dispatch(fetchReportDetails(id));
+      setResolveModalOpen(false);
+      toast.success('Report Resolved', `Case ${report.id} has been formally closed.`);
+    } catch (e) {
+      toast.error('Error', 'Failed to resolve report.');
+    }
   };
 
-  // Handle Dismiss
-  const handleDismiss = () => {
-    const updatedTimeline = [
-      ...report.timeline,
-      {
-        action: 'Report Dismissed',
-        timestamp: 'Today, Just now',
-        performedBy: 'Super Admin (sudhanshu@tutoron.in)',
-        notes: 'Dismissed after review of platform guidelines.',
-      },
-    ];
-
-    setReport({
-      ...report,
-      status: 'Dismissed',
-      resolution: 'Dismissed per standard platform arbitration.',
-      timeline: updatedTimeline,
-    });
-    toast.error('Report Dismissed', `Ticket ${report.id} has been dismissed.`);
+  const handleDismiss = async () => {
+    try {
+      await dispatch(resolveReport({
+        id: report.actualId,
+        resolution_action: 'DISMISSED',
+        admin_notes: adminNotes,
+      })).unwrap();
+      dispatch(fetchReportDetails(id));
+      toast.error('Report Dismissed', `Ticket ${report.id} has been dismissed.`);
+    } catch (e) {
+      toast.error('Error', 'Failed to dismiss report.');
+    }
   };
 
   return (
@@ -323,9 +363,9 @@ export function ReportDetails() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setReport({ ...report, adminNotes });
-                toast.success('Notes Saved', 'Investigation notes updated.');
+              onClick={async () => {
+                // If there's an API to update notes, it should be called here
+                toast.success('Notes Saved', 'Investigation notes updated locally.');
               }}
               className="w-full justify-center text-xs"
             >

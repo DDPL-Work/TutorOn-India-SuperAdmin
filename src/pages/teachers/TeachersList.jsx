@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchTeachers, approveTeacher, rejectTeacher } from '../../API/thunks/teachersThunks';
 import {
   FiUserCheck,
   FiClock,
@@ -25,7 +27,7 @@ import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_TEACHERS } from '../../data/teachers';
+
 
 export function TeachersList({ defaultTab = null }) {
   const navigate = useNavigate();
@@ -33,7 +35,9 @@ export function TeachersList({ defaultTab = null }) {
   const [searchParams] = useSearchParams();
 
   const tableRef = useRef(null);
-  const [teachers, setTeachers] = useState(INITIAL_TEACHERS);
+  const dispatch = useDispatch();
+  const { data: teachers, totalCount, verifiedCount, pendingCount, isLoading } = useSelector((state) => state.teachers);
+  
   const [searchTerm, setSearchTerm] = useState('');
   
   const tabParam = defaultTab || searchParams.get('tab');
@@ -41,6 +45,19 @@ export function TeachersList({ defaultTab = null }) {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    let verification_status = undefined;
+    if (activeTab === 'PENDING') verification_status = 'PENDING_VERIFICATION';
+    else if (activeTab === 'VERIFIED') verification_status = 'VERIFIED';
+    
+    dispatch(fetchTeachers({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchTerm,
+      verification_status
+    }));
+  }, [dispatch, activeTab, currentPage, pageSize, searchTerm]);
 
   // Verification Action Modal State
   const [actionModal, setActionModal] = useState({
@@ -58,37 +75,12 @@ export function TeachersList({ defaultTab = null }) {
     else navigate('/teachers');
   };
 
-  // Filtered & Searched Teachers
-  const filteredTeachers = useMemo(() => {
-    return teachers.filter((teacher) => {
-      // Tab filter
-      if (activeTab === 'PENDING' && teacher.verificationStatus !== 'Pending Verification') {
-        return false;
-      }
-      if (activeTab === 'VERIFIED' && teacher.verificationStatus !== 'Verified') {
-        return false;
-      }
+  // The API returns paginated data, so filteredTeachers is directly teachers array
+  const filteredTeachers = teachers || [];
 
-      // Search match
-      const query = searchTerm.toLowerCase().trim();
-      if (!query) return true;
-
-      const matchesName = teacher.name.toLowerCase().includes(query);
-      const matchesId = teacher.id.toLowerCase().includes(query);
-      const matchesQual = teacher.qualification.toLowerCase().includes(query);
-      const matchesSubject = teacher.subjects.some((s) => s.toLowerCase().includes(query));
-      const matchesCity = teacher.city?.toLowerCase().includes(query);
-
-      return matchesName || matchesId || matchesQual || matchesSubject || matchesCity;
-    });
-  }, [teachers, activeTab, searchTerm]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredTeachers.length / pageSize) || 1;
-  const paginatedTeachers = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredTeachers.slice(start, start + pageSize);
-  }, [filteredTeachers, currentPage, pageSize]);
+  // Pagination is handled by API
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedTeachers = filteredTeachers;
 
   // Open Approval Confirmation Modal
   const openApproveModal = (teacher) => {
@@ -111,49 +103,35 @@ export function TeachersList({ defaultTab = null }) {
   };
 
   // Execute Verification Action
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, teacher, notes } = actionModal;
     if (!teacher) return;
 
-    const nextStatus = type === 'approve' ? 'Verified' : 'Rejected';
-    const auditEntry = {
-      id: `AUD-${Date.now()}`,
-      action: type === 'approve' ? 'Teacher Verified' : 'Teacher Verification Declined',
-      by: 'Super Admin',
-      timestamp: new Date().toISOString(),
-      notes,
-    };
-
-    setTeachers((prev) =>
-      prev.map((t) => {
-        if (t.id === teacher.id) {
-          return {
-            ...t,
-            verificationStatus: nextStatus,
-            verificationAudit: [auditEntry, ...(t.verificationAudit || [])],
-          };
-        }
-        return t;
-      })
-    );
-
-    setActionModal({ isOpen: false, type: 'approve', teacher: null, notes: '' });
-
-    if (type === 'approve') {
-      toast.success(
-        'Teacher Verified',
-        `${teacher.name} has been certified and can now publish batches across TutorOn India.`
-      );
-    } else {
-      toast.error(
-        'Verification Declined',
-        `${teacher.name} flagged as Rejected. Feedback sent for document resubmission.`
-      );
+    try {
+      if (type === 'approve') {
+        await dispatch(approveTeacher({ id: teacher.id, admin_notes: notes })).unwrap();
+        toast.success(
+          'Teacher Verified',
+          `${teacher.display_name || teacher.name} has been certified and can now publish batches across TutorOn India.`
+        );
+      } else {
+        await dispatch(rejectTeacher({ id: teacher.id, rejection_reason: notes, admin_note: notes })).unwrap();
+        toast.error(
+          'Verification Declined',
+          `${teacher.display_name || teacher.name} flagged as Rejected. Feedback sent for document resubmission.`
+        );
+      }
+      // Refresh the list after action
+      let verification_status = undefined;
+      if (activeTab === 'PENDING') verification_status = 'PENDING_VERIFICATION';
+      else if (activeTab === 'VERIFIED') verification_status = 'VERIFIED';
+      dispatch(fetchTeachers({ page: currentPage, page_size: pageSize, search: searchTerm, verification_status }));
+    } catch (e) {
+      toast.error('Action Failed', e.toString());
+    } finally {
+      setActionModal({ isOpen: false, type: 'approve', teacher: null, notes: '' });
     }
   };
-
-  const pendingCount = teachers.filter((t) => t.verificationStatus === 'Pending Verification').length;
-  const verifiedCount = teachers.filter((t) => t.verificationStatus === 'Verified').length;
 
   return (
     <div className="space-y-6">
@@ -163,7 +141,7 @@ export function TeachersList({ defaultTab = null }) {
         subtitle="Manage teacher profiles and verification."
         badge={
           <Badge variant="navy" size="sm">
-            1,248 Registered Faculty
+            {totalCount.toLocaleString()} Registered Faculty
           </Badge>
         }
         actions={
@@ -186,7 +164,7 @@ export function TeachersList({ defaultTab = null }) {
               Total Teachers
             </span>
             <p className="text-xl font-bold font-geist text-slate-900 mt-0.5">
-              1,248
+              {totalCount.toLocaleString()}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-[#123B66]/10 text-[#123B66]">
@@ -200,7 +178,7 @@ export function TeachersList({ defaultTab = null }) {
               Verified Faculty
             </span>
             <p className="text-xl font-bold font-geist text-emerald-700 mt-0.5">
-              1,185
+              {verifiedCount.toLocaleString()}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600">
@@ -214,7 +192,7 @@ export function TeachersList({ defaultTab = null }) {
               Pending Verification
             </span>
             <p className="text-xl font-bold font-geist text-amber-700 mt-0.5">
-              37
+              {pendingCount.toLocaleString()}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600">
@@ -228,7 +206,7 @@ export function TeachersList({ defaultTab = null }) {
               Verification Pass Rate
             </span>
             <p className="text-xl font-bold font-geist text-slate-700 mt-0.5">
-              94.9%
+              {totalCount > 0 ? ((verifiedCount / totalCount) * 100).toFixed(1) : 0}%
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-100 text-slate-600">
@@ -250,7 +228,7 @@ export function TeachersList({ defaultTab = null }) {
         >
           <span>All Teachers</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 text-slate-600 font-mono">
-            {teachers.length}
+            {totalCount.toLocaleString()}
           </span>
         </button>
 
@@ -355,12 +333,12 @@ export function TeachersList({ defaultTab = null }) {
                         <Avatar name={teacher.name} size="sm" />
                         <div>
                           <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-                            {teacher.name}
+                            {teacher.display_name || teacher.name}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                            <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                            {/* <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
                               {teacher.id}
-                            </span>
+                            </span> */}
                             <span>{teacher.city}</span>
                           </div>
                         </div>
@@ -370,8 +348,8 @@ export function TeachersList({ defaultTab = null }) {
                     {/* Qualification & Subjects */}
                     <td className="py-3.5 px-4">
                       <div className="min-w-[200px] max-w-[260px]">
-                        <p className="font-medium text-slate-800 text-[11px]" title={teacher.qualification}>
-                          {teacher.qualification}
+                        <p className="font-medium text-slate-800 text-[11px]" title={teacher.headline || teacher.qualification}>
+                          {teacher.headline || teacher.qualification}
                         </p>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {teacher.subjects.slice(0, 2).map((sub, i) => (
@@ -394,11 +372,11 @@ export function TeachersList({ defaultTab = null }) {
                     {/* Experience & Languages */}
                     <td className="py-3.5 px-4 text-slate-700">
                       <div className="min-w-[180px] max-w-[240px]">
-                        <p className="font-medium text-slate-800 text-[11px]" title={teacher.experience}>
-                          {teacher.experience}
+                        <p className="font-medium text-slate-800 text-[11px]" title={teacher.experience || `${teacher.experience_years} Years`}>
+                          {teacher.experience || (teacher.experience_years ? `${teacher.experience_years} Years` : 'N/A')}
                         </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5" title={teacher.languages.join(', ')}>
-                          {teacher.languages.join(', ')}
+                        <p className="text-[10px] text-slate-500 mt-0.5" title={(teacher.languages || []).join(', ')}>
+                          {(teacher.languages || []).join(', ')}
                         </p>
                       </div>
                     </td>
@@ -407,16 +385,16 @@ export function TeachersList({ defaultTab = null }) {
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <div className="inline-flex items-center gap-1 font-bold text-slate-900 font-mono text-[11px]">
                         <FiStar className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                        <span>{teacher.rating.toFixed(2)}</span>
+                        <span>{parseFloat(teacher.rating || 0).toFixed(2)}</span>
                       </div>
                       <span className="block text-[10px] text-slate-500 font-mono mt-0.5">
-                        {teacher.studentsTaught.toLocaleString('en-IN')} learners
+                        {(teacher.total_students || teacher.studentsTaught || 0).toLocaleString('en-IN')} learners
                       </span>
                     </td>
 
                     {/* Verification Status */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <StatusBadge status={teacher.verificationStatus} />
+                      <StatusBadge status={teacher.verification_status === 'VERIFIED' ? 'Verified' : teacher.verification_status === 'PENDING_VERIFICATION' ? 'Pending Verification' : 'Rejected'} />
                     </td>
 
                     {/* Actions & Buttons */}
@@ -425,7 +403,7 @@ export function TeachersList({ defaultTab = null }) {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-2">
-                        {teacher.verificationStatus === 'Pending Verification' && (
+                        {teacher.verification_status === 'PENDING_VERIFICATION' && (
                           <div className="flex items-center gap-1 mr-1">
                             <button
                               type="button"
@@ -487,7 +465,7 @@ export function TeachersList({ defaultTab = null }) {
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={filteredTeachers.length}
+          totalItems={totalCount}
           pageSize={pageSize}
           onPageChange={(page) => setCurrentPage(page)}
         />
@@ -529,12 +507,12 @@ export function TeachersList({ defaultTab = null }) {
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-900 text-sm">
-                  {actionModal.teacher.name}
+                  {actionModal.teacher.display_name || actionModal.teacher.name}
                 </span>
                 <span className="font-mono text-slate-500">{actionModal.teacher.id}</span>
               </div>
-              <p className="text-slate-600 mt-1 font-medium">{actionModal.teacher.qualification}</p>
-              <p className="text-slate-500 text-[11px] mt-0.5">{actionModal.teacher.experience}</p>
+              <p className="text-slate-600 mt-1 font-medium">{actionModal.teacher.headline || actionModal.teacher.qualification}</p>
+              <p className="text-slate-500 text-[11px] mt-0.5">{actionModal.teacher.experience || (actionModal.teacher.experience_years ? `${actionModal.teacher.experience_years} Years` : 'N/A')}</p>
             </div>
 
             <div>

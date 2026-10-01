@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchReviews, updateReviewStatus } from '../../API/thunks/reviewsThunks';
 import {
   FiStar,
   FiTrash2,
@@ -20,14 +22,15 @@ import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_REVIEWS } from '../../data/reviews';
+
 
 export function ReviewsList() {
   const navigate = useNavigate();
   const toast = useToast();
 
   const tableRef = useRef(null);
-  const [reviews, setReviews] = useState(INITIAL_REVIEWS);
+  const dispatch = useDispatch();
+  const { data: reviews, totalCount, publishedCount, flaggedCount, removedCount, isLoading } = useSelector((state) => state.reviews);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [ratingFilter, setRatingFilter] = useState('ALL');
@@ -49,77 +52,60 @@ export function ReviewsList() {
     reason: 'Violates Platform Review Guidelines',
   });
 
+  useEffect(() => {
+    let apiStatus = undefined;
+    if (activeTab === 'published') apiStatus = 'PUBLISHED';
+    if (activeTab === 'flagged') apiStatus = 'FLAGGED';
+    if (activeTab === 'removed') apiStatus = 'REMOVED';
+
+    dispatch(fetchReviews({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      rating: ratingFilter === 'ALL' ? undefined : ratingFilter,
+      status: apiStatus
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, activeTab, ratingFilter]);
+
   // Tabs
   const tabs = [
-    { key: 'all', label: 'All Reviews', count: reviews.length },
+    { key: 'all', label: 'All Reviews', count: totalCount },
     {
       key: 'published',
       label: 'Published',
-      count: reviews.filter((r) => r.status === 'Published').length,
+      count: publishedCount,
     },
     {
       key: 'flagged',
       label: 'Flagged / Reported',
-      count: reviews.filter((r) => r.status === 'Flagged').length,
+      count: flaggedCount,
     },
     {
       key: 'removed',
       label: 'Removed by Admin',
-      count: reviews.filter((r) => r.status === 'Removed').length,
+      count: removedCount,
     },
   ];
 
-  // Filtering
-  const filteredReviews = useMemo(() => {
-    return reviews.filter((item) => {
-      // Tab filter
-      if (activeTab === 'published' && item.status !== 'Published') return false;
-      if (activeTab === 'flagged' && item.status !== 'Flagged') return false;
-      if (activeTab === 'removed' && item.status !== 'Removed') return false;
-
-      // Rating filter
-      if (ratingFilter !== 'ALL') {
-        const threshold = Number(ratingFilter);
-        if (Math.floor(item.rating) !== threshold) return false;
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchStudent = item.reviewer.name.toLowerCase().includes(q);
-        const matchTeacher = item.teacher.name.toLowerCase().includes(q);
-        const matchReview = item.review.toLowerCase().includes(q);
-        const matchBatch = item.batch.name.toLowerCase().includes(q);
-        if (!matchStudent && !matchTeacher && !matchReview && !matchBatch) return false;
-      }
-
-      return true;
-    });
-  }, [reviews, activeTab, ratingFilter, searchQuery]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredReviews.length / pageSize) || 1;
-  const paginatedReviews = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredReviews.slice(start, start + pageSize);
-  }, [filteredReviews, currentPage, pageSize]);
+  // Filtering and pagination handled by API
+  const filteredReviews = reviews || [];
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedReviews = filteredReviews;
 
   // Actions
-  const handleKeepReview = (item) => {
-    const updated = reviews.map((r) => {
-      if (r.id === item.id) {
-        return { ...r, status: 'Published', moderationNotes: 'Reviewed & verified by Super Admin' };
+  const handleKeepReview = async (item) => {
+    try {
+      await dispatch(updateReviewStatus({ id: item.id, status: 'PUBLISHED', notes: 'Reviewed & verified by Super Admin' })).unwrap();
+      if (detailModal.isOpen && detailModal.review?.id === item.id) {
+        setDetailModal({
+          ...detailModal,
+          review: { ...detailModal.review, status: 'PUBLISHED' },
+        });
       }
-      return r;
-    });
-    setReviews(updated);
-    if (detailModal.isOpen && detailModal.review?.id === item.id) {
-      setDetailModal({
-        ...detailModal,
-        review: { ...detailModal.review, status: 'Published' },
-      });
+      toast.success('Review Kept Active', 'Review marked as legitimate and published.');
+    } catch (e) {
+      toast.error('Error', 'Failed to update review status.');
     }
-    toast.success('Review Kept Active', 'Review marked as legitimate and published.');
   };
 
   const handleOpenRemoveModal = (item) => {
@@ -130,28 +116,20 @@ export function ReviewsList() {
     });
   };
 
-  const handleConfirmRemove = () => {
+  const handleConfirmRemove = async () => {
     const { review, reason } = removeModal;
     if (!review) return;
 
-    const updated = reviews.map((r) => {
-      if (r.id === review.id) {
-        return {
-          ...r,
-          status: 'Removed',
-          moderationNotes: `Removed by Super Admin: ${reason}`,
-        };
+    try {
+      await dispatch(updateReviewStatus({ id: review.id, status: 'REMOVED', notes: `Removed by Super Admin: ${reason}` })).unwrap();
+      setRemoveModal({ isOpen: false, review: null, reason: '' });
+      if (detailModal.isOpen) {
+        setDetailModal({ isOpen: false, review: null });
       }
-      return r;
-    });
-
-    setReviews(updated);
-    setRemoveModal({ isOpen: false, review: null, reason: '' });
-    if (detailModal.isOpen) {
-      setDetailModal({ isOpen: false, review: null });
+      toast.error('Review Removed', `Review ${review.id} has been hidden from public teacher profile.`);
+    } catch (e) {
+      toast.error('Error', 'Failed to remove review.');
     }
-
-    toast.error('Review Removed', `Review ${review.id} has been hidden from public teacher profile.`);
   };
 
   // Helper for star rating
@@ -182,12 +160,12 @@ export function ReviewsList() {
       header: 'Reviewer',
       render: (row) => (
         <div className="flex items-center gap-3">
-          <Avatar name={row.reviewer.name} src={row.reviewer.avatar} size="sm" />
+          <Avatar name={row.reviewer?.name || row.student_name || 'N/A'} src={row.reviewer?.photo} size="sm" />
           <div className="min-w-0">
             <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-              {row.reviewer.name}
+              {row.reviewer?.name || row.student_name || 'N/A'}
             </p>
-            <span className="text-[11px] text-slate-500 block mt-0.5">{row.reviewer.grade}</span>
+            <span className="text-[11px] text-slate-500 block mt-0.5">{row.reviewer?.grade_level || 'N/A'}</span>
           </div>
         </div>
       ),
@@ -197,12 +175,12 @@ export function ReviewsList() {
       header: 'Teacher',
       render: (row) => (
         <div className="flex items-center gap-2.5">
-          <Avatar name={row.teacher.name} src={row.teacher.avatar} size="xs" />
+          <Avatar name={row.teacher_info?.name || row.teacher_name || 'N/A'} src={row.teacher_info?.photo} size="xs" />
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-900 truncate">
-              {row.teacher.name}
+              {row.teacher_info?.name || row.teacher_name || 'N/A'}
             </p>
-            <span className="text-[10px] text-slate-500 block truncate">{row.teacher.subject}</span>
+            <span className="text-[10px] text-slate-500 block truncate">{row.teacher_info?.subject || 'N/A'}</span>
           </div>
         </div>
       ),
@@ -222,9 +200,9 @@ export function ReviewsList() {
             className="text-xs text-slate-800 line-clamp-2 hover:text-[#123B66] cursor-pointer"
             title="Click to view category ratings"
           >
-            &quot;{row.review}&quot;
+            &quot;{row.comment || row.review || row.feedback || ''}&quot;
           </p>
-          <span className="font-mono text-[10px] text-slate-400 mt-0.5 block">{row.batch.code}</span>
+          <span className="font-mono text-[10px] text-slate-400 mt-0.5 block">{row.batch_code || row.batch_title || 'N/A'}</span>
         </div>
       ),
     },
@@ -232,12 +210,12 @@ export function ReviewsList() {
       key: 'date',
       header: 'Date',
       className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
-      render: (row) => row.date,
+      render: (row) => row.formatted_date || row.date,
     },
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <StatusBadge status={row.status} />,
+      render: (row) => <StatusBadge status={row.status === 'PUBLISHED' ? 'Published' : row.status === 'FLAGGED' ? 'Flagged' : row.status === 'REMOVED' ? 'Removed' : 'Pending'} />,
     },
     {
       key: 'actions',
@@ -248,7 +226,7 @@ export function ReviewsList() {
           className="flex items-center justify-end gap-1.5"
           onClick={(e) => e.stopPropagation()}
         >
-          {row.status === 'Flagged' ? (
+          {row.status === 'FLAGGED' ? (
             <div className="flex items-center gap-1 mr-1">
               <button
                 type="button"
@@ -408,7 +386,7 @@ export function ReviewsList() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredReviews.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {
@@ -452,16 +430,16 @@ export function ReviewsList() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
                 <img
-                  src={detailModal.review.reviewer.avatar}
-                  alt={detailModal.review.reviewer.name}
+                  src={detailModal.review.reviewer?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(detailModal.review.reviewer?.name || 'User')}&background=random`}
+                  alt={detailModal.review.reviewer?.name}
                   className="w-10 h-10 rounded-full object-cover border border-slate-200"
                 />
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">
-                    {detailModal.review.reviewer.name}
+                    {detailModal.review.reviewer?.name || detailModal.review.student_name}
                   </h4>
                   <span className="text-slate-500 text-[11px]">
-                    {detailModal.review.reviewer.grade} • Review ID {detailModal.review.id}
+                    {detailModal.review.reviewer?.grade_level} • Review ID {detailModal.review.id.slice(0,8)}
                   </span>
                 </div>
               </div>
@@ -472,15 +450,15 @@ export function ReviewsList() {
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between">
               <div>
                 <span className="text-[11px] text-slate-500 block">Faculty:</span>
-                <span className="font-semibold text-slate-800">{detailModal.review.teacher.name}</span>
-                <span className="text-[10px] text-slate-400 block">{detailModal.review.teacher.subject}</span>
+                <span className="font-semibold text-slate-800">{detailModal.review.teacher_info?.name || detailModal.review.teacher_name}</span>
+                <span className="text-[10px] text-slate-400 block">{detailModal.review.teacher_info?.subject}</span>
               </div>
               <div className="text-right">
                 <span className="text-[11px] text-slate-500 block">Batch Code:</span>
                 <span className="font-mono text-slate-800 font-medium">
-                  {detailModal.review.batch.code}
+                  {detailModal.review.batch_code}
                 </span>
-                <span className="text-[10px] text-slate-400 block">{detailModal.review.date}</span>
+                <span className="text-[10px] text-slate-400 block">{detailModal.review.formatted_date}</span>
               </div>
             </div>
 
@@ -492,14 +470,14 @@ export function ReviewsList() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600 font-medium">Teaching Quality</span>
                     <span className="font-bold text-slate-900 font-mono">
-                      {detailModal.review.categoryRatings.teachingQuality} / 5
+                      {detailModal.review.teaching_quality || detailModal.review.categoryRatings?.teachingQuality || 0} / 5
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-1.5">
                     <div
                       className="bg-amber-500 h-1.5 rounded-full"
                       style={{
-                        width: `${(detailModal.review.categoryRatings.teachingQuality / 5) * 100}%`,
+                        width: `${((detailModal.review.teaching_quality || detailModal.review.categoryRatings?.teachingQuality || 0) / 5) * 100}%`,
                       }}
                     />
                   </div>
@@ -509,14 +487,14 @@ export function ReviewsList() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600 font-medium">Doubt Solving</span>
                     <span className="font-bold text-slate-900 font-mono">
-                      {detailModal.review.categoryRatings.doubtSolving} / 5
+                      {detailModal.review.doubt_solving || detailModal.review.categoryRatings?.doubtSolving || 0} / 5
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-1.5">
                     <div
                       className="bg-amber-500 h-1.5 rounded-full"
                       style={{
-                        width: `${(detailModal.review.categoryRatings.doubtSolving / 5) * 100}%`,
+                        width: `${((detailModal.review.doubt_solving || detailModal.review.categoryRatings?.doubtSolving || 0) / 5) * 100}%`,
                       }}
                     />
                   </div>
@@ -526,14 +504,14 @@ export function ReviewsList() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600 font-medium">Punctuality</span>
                     <span className="font-bold text-slate-900 font-mono">
-                      {detailModal.review.categoryRatings.punctuality} / 5
+                      {detailModal.review.punctuality || detailModal.review.categoryRatings?.punctuality || 0} / 5
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-1.5">
                     <div
                       className="bg-amber-500 h-1.5 rounded-full"
                       style={{
-                        width: `${(detailModal.review.categoryRatings.punctuality / 5) * 100}%`,
+                        width: `${((detailModal.review.punctuality || detailModal.review.categoryRatings?.punctuality || 0) / 5) * 100}%`,
                       }}
                     />
                   </div>
@@ -543,14 +521,14 @@ export function ReviewsList() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600 font-medium">Notes Quality</span>
                     <span className="font-bold text-slate-900 font-mono">
-                      {detailModal.review.categoryRatings.notesQuality} / 5
+                      {detailModal.review.notes_quality || detailModal.review.categoryRatings?.notesQuality || 0} / 5
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-1.5">
                     <div
                       className="bg-amber-500 h-1.5 rounded-full"
                       style={{
-                        width: `${(detailModal.review.categoryRatings.notesQuality / 5) * 100}%`,
+                        width: `${((detailModal.review.notes_quality || detailModal.review.categoryRatings?.notesQuality || 0) / 5) * 100}%`,
                       }}
                     />
                   </div>
@@ -560,7 +538,7 @@ export function ReviewsList() {
 
             {/* Review Text */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 leading-relaxed italic">
-              &quot;{detailModal.review.review}&quot;
+              &quot;{detailModal.review.comment || detailModal.review.review}&quot;
             </div>
 
             {detailModal.review.moderationNotes && (

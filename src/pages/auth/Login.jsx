@@ -12,7 +12,6 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
-import { DEMO_CREDENTIALS } from '../../data/mockAuth';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -75,13 +74,6 @@ export function Login() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleFillDemo = () => {
-    setEmail(DEMO_CREDENTIALS.email);
-    setPassword(DEMO_CREDENTIALS.password);
-    setFormError('');
-    toast.info('Demo Credentials Applied', 'Ready to sign in as Super Admin.');
   };
 
   const handleForgotPasswordSubmit = (e) => {
@@ -202,24 +194,6 @@ export function Login() {
             <p className="text-xs sm:text-sm text-slate-500">
               Sign in with your authorized administrator credentials to manage platform operations.
             </p>
-          </div>
-
-          {/* Quick Demo Credentials Assistant */}
-          <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl flex items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <FiKey className="w-4 h-4 text-[#123B66] shrink-0" />
-              <div className="truncate">
-                <span className="font-semibold text-slate-800">Quick Test:</span>{' '}
-                <span className="font-mono text-slate-600">admin@tutoron.in</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleFillDemo}
-              className="text-xs font-semibold text-[#123B66] hover:text-[#0B1F3A] hover:underline whitespace-nowrap cursor-pointer px-2 py-1 rounded bg-white border border-blue-200 shadow-2xs"
-            >
-              Fill Demo
-            </button>
           </div>
 
           {/* Error alert banner */}

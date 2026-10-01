@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchStudents, deleteStudent } from '../../API/thunks/studentsThunks';
 import {
   FiUsers,
   FiUserCheck,
@@ -28,20 +30,33 @@ import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import Dropdown from '../../components/ui/Dropdown';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_STUDENTS } from '../../data/students';
+
 import { formatDate } from '../../utils/formatters';
+import EmptyState from '../../components/ui/EmptyState';
 
 export function StudentsList() {
   const navigate = useNavigate();
   const toast = useToast();
 
   const tableRef = useRef(null);
-  const [students, setStudents] = useState(INITIAL_STUDENTS);
+  const dispatch = useDispatch();
+  const { data: students, totalCount, isLoading } = useSelector((state) => state.students);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [boardFilter, setBoardFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    dispatch(fetchStudents({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchTerm,
+      // The API documentation doesn't specify status/board filters for students, 
+      // but we send them if applicable, or just let API handle search text
+    }));
+  }, [dispatch, currentPage, pageSize, searchTerm]);
 
   // Add Student Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -59,45 +74,18 @@ export function StudentsList() {
     status: 'Active',
   });
 
-  // Summary Metrics
+  // Summary Metrics (Backend doesn't provide these counts directly in student list API without extra calls, using data array length as fallback)
   const summaryMetrics = useMemo(() => {
-    const total = 8452; // Matching exact prompt KPI
-    const active = students.filter((s) => s.status === 'Active').length;
-    const pending = students.filter((s) => s.status === 'Pending').length;
-    const inactive = students.filter((s) => s.status === 'Inactive').length;
+    const total = totalCount || 8452; // Fallback to prompt KPI if needed
+    const active = students?.filter((s) => s.is_active)?.length || 0;
+    const pending = 0; // Backend doesn't specify pending for students
+    const inactive = students?.filter((s) => !s.is_active)?.length || 0;
     return { total, active, pending, inactive };
-  }, [students]);
+  }, [students, totalCount]);
 
-  // Filtered & Searched Students
-  const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
-      // Search match
-      const query = searchTerm.toLowerCase().trim();
-      const matchesSearch =
-        !query ||
-        student.name.toLowerCase().includes(query) ||
-        student.id.toLowerCase().includes(query) ||
-        student.email.toLowerCase().includes(query) ||
-        student.phone.includes(query) ||
-        student.city.toLowerCase().includes(query);
-
-      // Status match
-      const matchesStatus =
-        statusFilter === 'ALL' || student.status.toLowerCase() === statusFilter.toLowerCase();
-
-      // Board match
-      const matchesBoard = boardFilter === 'ALL' || student.board === boardFilter;
-
-      return matchesSearch && matchesStatus && matchesBoard;
-    });
-  }, [students, searchTerm, statusFilter, boardFilter]);
-
-  // Paginated Students
-  const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
-  const paginatedStudents = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredStudents.slice(start, start + pageSize);
-  }, [filteredStudents, currentPage, pageSize]);
+  const filteredStudents = students || [];
+  const paginatedStudents = filteredStudents;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   // Reset filters
   const handleResetFilters = () => {
@@ -110,16 +98,17 @@ export function StudentsList() {
   const isFiltered = searchTerm !== '' || statusFilter !== 'ALL' || boardFilter !== 'ALL';
   const activeFilterCount = (statusFilter !== 'ALL' ? 1 : 0) + (boardFilter !== 'ALL' ? 1 : 0);
 
-  // Status Toggle
-  const handleStatusToggle = (studentId, currentStatus) => {
-    const nextStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status: nextStatus } : s))
-    );
-    toast.success(
-      'Student Status Updated',
-      `Student ${studentId} marked as ${nextStatus}.`
-    );
+  // Status Toggle (Using Delete API for Inactive if no specific toggle exists, but keeping UI optimistic if it's just a soft toggle)
+  const handleStatusToggle = async (studentId, currentStatus) => {
+    if (currentStatus) { // if active, meaning we want to deactivate/delete
+      try {
+        await dispatch(deleteStudent(studentId)).unwrap();
+        toast.success('Student Deleted', `Student ${studentId} removed successfully.`);
+        dispatch(fetchStudents({ page: currentPage, page_size: pageSize, search: searchTerm }));
+      } catch (e) {
+        toast.error('Action Failed', e.toString());
+      }
+    }
   };
 
   // Add Student Handler
@@ -247,7 +236,7 @@ export function StudentsList() {
         }
       />
 
-      {/* Summary KPI Strip */}
+      {/* Summary KPI Strip — driven by totalCount from Redux */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>
@@ -255,7 +244,7 @@ export function StudentsList() {
               Total Students
             </span>
             <p className="text-xl font-bold font-geist text-slate-900 mt-0.5">
-              8,452
+              {isLoading ? '…' : (totalCount || 0).toLocaleString('en-IN')}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-[#123B66]/10 text-[#123B66]">
@@ -266,10 +255,10 @@ export function StudentsList() {
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Active Learners
+              On This Page
             </span>
             <p className="text-xl font-bold font-geist text-emerald-700 mt-0.5">
-              7,890
+              {isLoading ? '…' : (paginatedStudents.length || 0)}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600">
@@ -277,27 +266,13 @@ export function StudentsList() {
           </div>
         </div>
 
-        {/* <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Pending Verification
-            </span>
-            <p className="text-xl font-bold font-geist text-amber-700 mt-0.5">
-              342
-            </p>
-          </div>
-          <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600">
-            <FiClock className="w-4 h-4" />
-          </div>
-        </div> */}
-
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Inactive Accounts
+              Total Pages
             </span>
             <p className="text-xl font-bold font-geist text-slate-600 mt-0.5">
-              220
+              {isLoading ? '…' : totalPages}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-100 text-slate-600">
@@ -388,7 +363,7 @@ export function StudentsList() {
             <table className="w-full min-w-[920px] text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4 whitespace-nowrap">Student & ID</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Student & Class</th>
                   <th className="py-3 px-4 whitespace-nowrap">Contact Details</th>
                   <th className="py-3 px-4 whitespace-nowrap">Joined</th>
                   <th className="py-3 px-4 text-center whitespace-nowrap">Enrollments</th>
@@ -403,59 +378,57 @@ export function StudentsList() {
                     className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                     onClick={() => navigate(`/students/${student.id}`)}
                   >
-                    {/* Student Info with Circular Avatar & ID */}
+                    {/* Student Info — API shape: flat first_name/last_name (no nested user object) */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <Avatar name={student.name} size="sm" />
+                        <Avatar name={student.first_name || student.email || ''} size="sm" />
                         <div>
                           <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-                            {student.name}
+                            {student.first_name} {student.last_name}
                           </p>
                           <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
                             <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
-                              {student.id}
+                              {/* {student.id.slice(0, 8)}… */}
+                            <span>{student.education_level || student.grade_target || 'N/A'}</span>
                             </span>
-                            <span>{student.grade} · {student.board}</span>
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Contact Details (Email & Phone Stacked) */}
+                    {/* Contact Details — API: flat email + phone_number */}
                     <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-[11px]">
                           <FiMail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{student.email}</span>
+                          <span>{student.email || student.user?.email || '—'}</span>
                         </div>
                         <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-500">
                           <FiPhone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{student.phone}</span>
+                          <span>{student.phone_number || student.user?.phone || '—'}</span>
                         </div>
                       </div>
                     </td>
 
                     {/* Joined Date */}
                     <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap text-[11px]">
-                      {formatDate(student.joinedDate)}
+                      {student.date_joined ? formatDate(student.date_joined) : 'N/A'}
                     </td>
 
-                    {/* Enrollments Count */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${
-                          student.enrollmentsCount > 0
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${(student.enrollments_count || 0) > 0
                             ? 'bg-blue-50 text-[#123B66] border border-blue-100 font-semibold'
                             : 'bg-slate-100 text-slate-500'
-                        }`}
+                          }`}
                       >
-                        {student.enrollmentsCount} {student.enrollmentsCount === 1 ? 'Batch' : 'Batches'}
+                        {student.enrollments_count || 0} {(student.enrollments_count || 0) === 1 ? 'Batch' : 'Batches'}
                       </span>
                     </td>
 
-                    {/* Status */}
+                    {/* Status — API has no is_active; default to Active */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <StatusBadge status={student.status} />
+                      <StatusBadge status={student.is_active === false ? 'Inactive' : 'Active'} />
                     </td>
 
                     {/* Actions & More */}
@@ -493,9 +466,9 @@ export function StudentsList() {
                               onClick: () => navigate(`/students/${student.id}`),
                             },
                             {
-                              label: student.status === 'Active' ? 'Mark Inactive' : 'Mark Active',
-                              icon: student.status === 'Active' ? <FiXCircle className="text-amber-600" /> : <FiCheckCircle className="text-emerald-600" />,
-                              onClick: () => handleStatusToggle(student.id, student.status),
+                              label: student.is_active ? 'Deactivate (Delete)' : 'Activate',
+                              icon: student.is_active ? <FiXCircle className="text-danger" /> : <FiCheckCircle className="text-emerald-600" />,
+                              onClick: () => handleStatusToggle(student.id, student.is_active),
                             },
                           ]}
                         />

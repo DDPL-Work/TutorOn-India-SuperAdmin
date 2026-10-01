@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchConnections, approveConnection } from '../../API/thunks/connectionsThunks';
 import {
   FiLock,
   FiUnlock,
@@ -24,7 +26,7 @@ import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_CONNECTIONS } from '../../data/connections';
+
 import { formatDate } from '../../utils/formatters';
 
 export function ConnectionsList() {
@@ -33,23 +35,35 @@ export function ConnectionsList() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tableRef = useRef(null);
-  const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
+  const dispatch = useDispatch();
+  const { data: connections, totalCount, pendingCount, isLoading } = useSelector((state) => state.connections);
+
   const [searchTerm, setSearchTerm] = useState('');
   
   const tabParam = searchParams.get('tab');
   const statusFilter =
-    tabParam === 'pending_admin'
-      ? 'Pending Admin Verification'
-      : tabParam === 'pending_student'
-      ? 'Pending Student Approval'
+    tabParam === 'pending_admin' || tabParam === 'pending_student'
+      ? 'PENDING'
       : tabParam === 'approved'
-      ? 'Approved'
+      ? 'APPROVED'
       : tabParam === 'rejected'
-      ? 'Rejected'
+      ? 'REJECTED'
       : 'ALL';
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    let apiStatus = undefined;
+    if (statusFilter !== 'ALL') apiStatus = statusFilter;
+
+    dispatch(fetchConnections({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchTerm,
+      status: apiStatus
+    }));
+  }, [dispatch, currentPage, pageSize, searchTerm, statusFilter]);
 
   // Approval/Rejection Modal State
   const [actionModal, setActionModal] = useState({
@@ -68,33 +82,12 @@ export function ConnectionsList() {
     else setSearchParams({});
   };
 
-  // Filtered & Searched Connections
-  const filteredConnections = useMemo(() => {
-    return connections.filter((conn) => {
-      // Status match
-      if (statusFilter !== 'ALL' && conn.status !== statusFilter) {
-        return false;
-      }
+  // Filtered & Searched Connections (Handled by API, fallback directly)
+  const filteredConnections = connections || [];
 
-      // Search match
-      const query = searchTerm.toLowerCase().trim();
-      if (!query) return true;
-
-      const matchesId = conn.id.toLowerCase().includes(query);
-      const matchesTeacher = conn.teacher.name.toLowerCase().includes(query) || conn.teacher.subject.toLowerCase().includes(query);
-      const matchesStudent = conn.student.name.toLowerCase().includes(query) || conn.student.grade.toLowerCase().includes(query);
-      const matchesReason = conn.reason.toLowerCase().includes(query);
-
-      return matchesId || matchesTeacher || matchesStudent || matchesReason;
-    });
-  }, [connections, statusFilter, searchTerm]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredConnections.length / pageSize) || 1;
-  const paginatedConnections = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredConnections.slice(start, start + pageSize);
-  }, [filteredConnections, currentPage, pageSize]);
+  // Pagination (Handled by API)
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedConnections = filteredConnections;
 
   // Open Approval Modal
   const openApproveModal = (conn) => {
@@ -270,11 +263,10 @@ export function ConnectionsList() {
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {[
-          { id: 'ALL', label: 'All Requests', count: connections.length },
-          { id: 'Pending Admin Verification', label: 'Pending Admin Verification', count: pendingAdminCount, isAlert: pendingAdminCount > 0 },
-          { id: 'Pending Student Approval', label: 'Pending Student Approval', count: connections.filter((c) => c.status === 'Pending Student Approval').length },
-          { id: 'Approved', label: 'Approved & Unlocked', count: connections.filter((c) => c.status === 'Approved').length },
-          { id: 'Rejected', label: 'Rejected / Blocked', count: connections.filter((c) => c.status === 'Rejected').length },
+          { id: 'ALL', label: 'All Requests', count: totalCount },
+          { id: 'PENDING', label: 'Pending Verification/Approval', count: pendingCount, isAlert: pendingCount > 0 },
+          { id: 'APPROVED', label: 'Approved & Unlocked', count: connections?.filter((c) => c.status === 'APPROVED').length || 0 },
+          { id: 'REJECTED', label: 'Rejected / Blocked', count: connections?.filter((c) => c.status === 'REJECTED').length || 0 },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -371,13 +363,13 @@ export function ConnectionsList() {
                     {/* Teacher with Circular Avatar */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={conn.teacher.name} size="sm" />
+                        <Avatar name={conn.teacher_name || 'N/A'} size="sm" />
                         <div>
                           <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-                            {conn.teacher.name}
+                            {conn.teacher_name || 'N/A'}
                           </p>
                           <p className="text-[11px] text-slate-500 mt-0.5">
-                            {conn.teacher.subject} · <span className="font-mono">{conn.teacher.id}</span>
+                            {conn.subject_interest || 'N/A'}
                           </p>
                         </div>
                       </div>
@@ -386,13 +378,10 @@ export function ConnectionsList() {
                     {/* Student with Circular Avatar */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={conn.student.name} size="sm" />
+                        <Avatar name={conn.student_name || 'N/A'} size="sm" />
                         <div>
                           <p className="font-semibold text-slate-900 leading-tight">
-                            {conn.student.name}
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {conn.student.grade} · <span className="font-mono">{conn.student.id}</span>
+                            {conn.student_name || 'N/A'}
                           </p>
                         </div>
                       </div>
@@ -400,7 +389,7 @@ export function ConnectionsList() {
 
                     {/* Request Date */}
                     <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
-                      {formatDate(conn.requestDate)}
+                      {conn.request_date ? formatDate(conn.request_date) : 'N/A'}
                     </td>
 
                     {/* Approvals Track (Student + Admin) */}
@@ -436,12 +425,12 @@ export function ConnectionsList() {
                     {/* Status */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        {conn.status === 'Approved' ? (
+                        {conn.status === 'APPROVED' ? (
                           <FiUnlock className="w-3.5 h-3.5 text-emerald-600" />
                         ) : (
                           <FiLock className="w-3.5 h-3.5 text-slate-400" />
                         )}
-                        <StatusBadge status={conn.status} />
+                        <StatusBadge status={conn.status === 'APPROVED' ? 'Approved' : conn.status === 'REJECTED' ? 'Rejected' : 'Pending Admin Verification'} />
                       </div>
                     </td>
 
@@ -451,7 +440,7 @@ export function ConnectionsList() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-2">
-                        {conn.status === 'Pending Admin Verification' && (
+                        {conn.status === 'PENDING' && (
                           <div className="flex items-center gap-1 mr-1">
                             <button
                               type="button"
@@ -513,7 +502,7 @@ export function ConnectionsList() {
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={filteredConnections.length}
+          totalItems={totalCount}
           pageSize={pageSize}
           onPageChange={(page) => setCurrentPage(page)}
         />
@@ -529,7 +518,7 @@ export function ConnectionsList() {
               ? `Authorize Contact Disclosure — ${actionModal.connection.id}`
               : `Decline Contact Request — ${actionModal.connection.id}`
           }
-          description={`Between ${actionModal.connection.teacher.name} and ${actionModal.connection.student.name}`}
+          description={`Between ${actionModal.connection.teacher_name || 'N/A'} and ${actionModal.connection.student_name || 'N/A'}`}
           size="md"
           footer={
             <>
@@ -556,11 +545,11 @@ export function ConnectionsList() {
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-900">{actionModal.connection.id}</span>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  {formatDate(actionModal.connection.requestDate)}
+                  {formatDate(actionModal.connection.request_date)}
                 </span>
               </div>
               <p className="text-slate-700">
-                Reason: <em>"{actionModal.connection.reason}"</em>
+                Subject Interest: <em>"{actionModal.connection.subject_interest}"</em>
               </p>
             </div>
 

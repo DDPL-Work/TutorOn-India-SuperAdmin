@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchAnnouncements, updateAnnouncementStatus, deleteAnnouncement } from '../../API/thunks/announcementsThunks';
 import {
   FiPlus,
   FiEye,
@@ -15,15 +17,48 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_BANNERS } from '../../data/banners';
+
 
 export function BannersList() {
   const navigate = useNavigate();
   const toast = useToast();
+  const dispatch = useDispatch();
 
   const tableRef = useRef(null);
-  const [banners, setBanners] = useState(INITIAL_BANNERS);
-  const [selectedBanner, setSelectedBanner] = useState(INITIAL_BANNERS[0]);
+  const { data: allBanners, isLoading } = useSelector((state) => state.announcements);
+  
+  const [selectedBanner, setSelectedBanner] = useState(null);
+
+  // Fetch from API
+  useEffect(() => {
+    dispatch(fetchAnnouncements({ is_banner: true, page_size: 50 }));
+  }, [dispatch]);
+
+  // Map API data
+  const banners = (allBanners || []).map(b => ({
+    id: b.code || b.id.slice(0,8),
+    actualId: b.id,
+    title: b.title || 'Untitled Banner',
+    subtitle: b.description || 'Promotional Campaign',
+    image: b.banner_image || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+    ctaText: b.cta_label || 'Learn More',
+    ctaDestination: b.cta_url || b.cta_destination || '/',
+    audience: b.audience_display || b.audience || 'All Users',
+    startDate: b.start_date || 'N/A',
+    endDate: b.end_date || 'N/A',
+    displayOrder: b.slot || 1,
+    status: b.status === 'PUBLISHED' ? 'Active' : 'Disabled',
+    accentColor: 'from-[#0B1F3A] to-[#1D4ED8]',
+    impressionsCount: b.impressions_count || 0,
+    clicksCount: b.clicks_count || 0,
+  }));
+
+  // Auto-select first banner if none selected
+  useEffect(() => {
+    if (banners.length > 0 && (!selectedBanner || !banners.find(b => b.actualId === selectedBanner.actualId))) {
+      setSelectedBanner(banners[0]);
+    }
+  }, [banners, selectedBanner]);
 
   // Create/Edit Modal State
   const [editModal, setEditModal] = useState({
@@ -74,39 +109,30 @@ export function BannersList() {
       return;
     }
 
-    if (isNew) {
-      setBanners([banner, ...banners]);
-      setSelectedBanner(banner);
-      toast.success('Banner Created', `"${banner.title}" created successfully.`);
-    } else {
-      const updated = banners.map((b) => (b.id === banner.id ? banner : b));
-      setBanners(updated);
-      setSelectedBanner(banner);
-      toast.success('Banner Updated', `"${banner.title}" updated.`);
-    }
-
+    toast.info('Feature Coming Soon', 'Banner creation via API is pending backend endpoint.');
     setEditModal({ isOpen: false, isNew: false, banner: null });
   };
 
-  const handleToggleActive = (banner) => {
-    const nextStatus = banner.status === 'Active' ? 'Disabled' : 'Active';
-    const updated = banners.map((b) => (b.id === banner.id ? { ...b, status: nextStatus } : b));
-    setBanners(updated);
-    if (selectedBanner?.id === banner.id) {
-      setSelectedBanner({ ...selectedBanner, status: nextStatus });
+  const handleToggleActive = async (banner) => {
+    const nextStatus = banner.status === 'Active' ? 'DISABLED' : 'PUBLISHED';
+    try {
+      await dispatch(updateAnnouncementStatus({ id: banner.actualId, status: nextStatus })).unwrap();
+      toast.info('Status Updated', `Banner is now ${nextStatus === 'PUBLISHED' ? 'Active' : 'Disabled'}.`);
+    } catch (e) {
+      toast.error('Error', 'Failed to update banner status.');
     }
-    toast.info('Status Updated', `Banner is now ${nextStatus}.`);
   };
 
-  const handleDeleteBanner = () => {
+  const handleDeleteBanner = async () => {
     if (!deleteModal.banner) return;
-    const updated = banners.filter((b) => b.id !== deleteModal.banner.id);
-    setBanners(updated);
-    if (selectedBanner?.id === deleteModal.banner.id) {
-      setSelectedBanner(updated[0] || null);
+    try {
+      await dispatch(deleteAnnouncement(deleteModal.banner.actualId)).unwrap();
+      setDeleteModal({ isOpen: false, banner: null });
+      setSelectedBanner(null);
+      toast.error('Banner Deleted', 'The promotional banner has been removed.');
+    } catch (e) {
+      toast.error('Error', 'Failed to delete banner.');
     }
-    setDeleteModal({ isOpen: false, banner: null });
-    toast.error('Banner Deleted', 'The promotional banner has been removed.');
   };
 
   const columns = [

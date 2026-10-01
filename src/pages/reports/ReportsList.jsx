@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchReports, resolveReport } from '../../API/thunks/reportsThunks';
 import {
   FiAlertTriangle,
   FiEye,
@@ -17,14 +19,17 @@ import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_REPORTS } from '../../data/reports';
+
 
 export function ReportsList() {
   const navigate = useNavigate();
   const toast = useToast();
+  const dispatch = useDispatch();
 
   const tableRef = useRef(null);
-  const [reports, setReports] = useState(INITIAL_REPORTS);
+  
+  const { data: allReports, totalCount, openCount, underReviewCount, resolvedCount, dismissedCount, isLoading } = useSelector((state) => state.reports);
+
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -34,82 +39,92 @@ export function ReportsList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Fetch from API
+  useEffect(() => {
+    let apiStatus = undefined;
+    if (activeTab === 'open') apiStatus = 'OPEN';
+    if (activeTab === 'under_review') apiStatus = 'UNDER_REVIEW';
+    if (activeTab === 'resolved') apiStatus = 'RESOLVED';
+    if (activeTab === 'dismissed') apiStatus = 'DISMISSED';
+
+    dispatch(fetchReports({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      category: categoryFilter === 'ALL' ? undefined : categoryFilter,
+      priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
+      status: apiStatus
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, activeTab, categoryFilter, priorityFilter]);
+
+  // Map API data
+  const reports = (allReports || []).map(r => ({
+    id: r.id,
+    actualId: r.id,
+    code: r.report_code || r.id,
+    reportedUser: {
+      name: r.reported_user?.name || 'Unknown',
+      avatar: r.reported_user?.photo || null,
+      role: r.reported_user?.role || r.target_type || 'User',
+    },
+    reportedBy: {
+      name: r.filed_by?.name || 'System / Admin',
+      role: r.filed_by?.role || 'Moderator',
+    },
+    category: r.category || 'Other',
+    priority: r.priority || 'Medium',
+    status: r.status === 'OPEN' || r.status === 'Open' ? 'Open' :
+            r.status === 'UNDER_REVIEW' || r.status === 'Under Review' ? 'Under Review' :
+            r.status === 'RESOLVED' || r.status === 'Resolved' ? 'Resolved' :
+            r.status === 'DISMISSED' || r.status === 'Dismissed' ? 'Dismissed' : r.status || 'Open',
+    date: r.formatted_date || (r.created_at ? r.created_at.split('T')[0] : (r.date || 'N/A')),
+    description: r.description || r.reason || '',
+  }));
+
   // Tabs
   const tabs = [
-    { key: 'all', label: 'All Reports', count: reports.length },
+    { key: 'all', label: 'All Reports', count: totalCount },
     {
       key: 'open',
       label: 'Open',
-      count: reports.filter((r) => r.status === 'Open').length,
+      count: openCount,
     },
     {
       key: 'under_review',
       label: 'Under Review',
-      count: reports.filter((r) => r.status === 'Under Review').length,
+      count: underReviewCount,
     },
     {
       key: 'resolved',
       label: 'Resolved',
-      count: reports.filter((r) => r.status === 'Resolved').length,
+      count: resolvedCount,
     },
     {
       key: 'dismissed',
       label: 'Dismissed',
-      count: reports.filter((r) => r.status === 'Dismissed').length,
+      count: dismissedCount,
     },
   ];
 
   // Filtering
-  const filteredReports = useMemo(() => {
-    return reports.filter((item) => {
-      // Tab filter
-      if (activeTab === 'open' && item.status !== 'Open') return false;
-      if (activeTab === 'under_review' && item.status !== 'Under Review') return false;
-      if (activeTab === 'resolved' && item.status !== 'Resolved') return false;
-      if (activeTab === 'dismissed' && item.status !== 'Dismissed') return false;
-
-      // Category filter
-      if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
-
-      // Priority filter
-      if (priorityFilter !== 'ALL' && item.priority !== priorityFilter) return false;
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchId = item.id.toLowerCase().includes(q);
-        const matchReporter = item.reportedBy.name.toLowerCase().includes(q);
-        const matchReported = item.reportedUser.name.toLowerCase().includes(q);
-        const matchDesc = item.description.toLowerCase().includes(q);
-        if (!matchId && !matchReporter && !matchReported && !matchDesc) return false;
-      }
-
-      return true;
-    });
-  }, [reports, activeTab, categoryFilter, priorityFilter, searchQuery]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredReports.length / pageSize) || 1;
-  const paginatedReports = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredReports.slice(start, start + pageSize);
-  }, [filteredReports, currentPage, pageSize]);
+  // Filtering and pagination handled by API
+  const filteredReports = reports;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedReports = filteredReports;
 
   // Quick Resolve Action
-  const handleQuickResolve = (item, e) => {
+  const handleQuickResolve = async (item, e) => {
     e.stopPropagation();
-    const updated = reports.map((r) => {
-      if (r.id === item.id) {
-        return {
-          ...r,
-          status: 'Resolved',
-          resolution: 'Quick resolved by Super Admin.',
-        };
-      }
-      return r;
-    });
-    setReports(updated);
-    toast.success('Report Resolved', `Grievance ticket ${item.id} marked as resolved.`);
+    try {
+      await dispatch(resolveReport({
+        id: item.actualId,
+        resolution_action: 'QUICK_RESOLVED',
+        admin_notes: 'Quick resolved by Super Admin.',
+      })).unwrap();
+      toast.success('Report Resolved', `Grievance ticket ${item.code} marked as resolved.`);
+    } catch (e) {
+      toast.error('Error', 'Failed to resolve report.');
+    }
   };
 
   // Columns definition
@@ -125,8 +140,8 @@ export function ReportsList() {
               {row.reportedUser.name}
             </p>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-              <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
-                {row.id}
+              <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]" title={row.code}>
+                {row.code}
               </span>
               <span>{row.reportedUser.role}</span>
             </div>
@@ -233,7 +248,7 @@ export function ReportsList() {
           <div className="flex items-center gap-2">
             <Badge variant="danger" size="md" className="gap-1.5 py-1 px-3">
               <FiAlertTriangle className="w-3.5 h-3.5 text-red-600" />
-              <span>{reports.filter((r) => r.status === 'Open').length} Open Reports</span>
+              <span>{openCount} Open Reports</span>
             </Badge>
           </div>
         }
@@ -372,7 +387,7 @@ export function ReportsList() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredReports.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {

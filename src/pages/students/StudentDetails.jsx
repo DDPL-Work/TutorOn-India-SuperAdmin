@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { fetchStudentById } from '../../API/thunks/studentsThunks';
 import {
   FiArrowLeft,
   FiMail,
@@ -26,7 +28,7 @@ import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_STUDENTS } from '../../data/students';
+
 import { formatDate, formatCurrency } from '../../utils/formatters';
 
 export function StudentDetails() {
@@ -34,10 +36,22 @@ export function StudentDetails() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  // Find student record from mock database
-  const [student, setStudent] = useState(() => {
-    return INITIAL_STUDENTS.find((s) => s.id === id) || null;
-  });
+  const dispatch = useDispatch();
+  const [student, setStudent] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    setIsLoading(true);
+    dispatch(fetchStudentById(id))
+      .unwrap()
+      .then((data) => setStudent(data))
+      .catch((err) => {
+        toast.error('Fetch Failed', err?.toString() || 'Could not fetch student details.');
+        setStudent(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, [dispatch, id]);
 
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -53,6 +67,14 @@ export function StudentDetails() {
       date: '2026-08-10',
     },
   ]);
+
+  if (isLoading) {
+    return (
+      <div className="py-12 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#123B66]"></div>
+      </div>
+    );
+  }
 
   if (!student) {
     return (
@@ -79,7 +101,7 @@ export function StudentDetails() {
   const handleToggleStatus = () => {
     const nextStatus = student.status === 'Active' ? 'Inactive' : 'Active';
     setStudent((prev) => ({ ...prev, status: nextStatus }));
-    toast.success('Status Updated', `Student ${student.name} is now ${nextStatus}.`);
+    toast.success('Status Updated', `Student ${student.full_name || student.first_name} is now ${nextStatus}.`);
   };
 
   // Edit Profile Handler
@@ -97,7 +119,7 @@ export function StudentDetails() {
     setIsNoticeModalOpen(false);
     toast.success(
       'Administrative Notice Dispatched',
-      `Direct notification sent to ${student.name} (${student.phone}).`
+      `Direct notification sent to ${student.full_name || student.first_name} (${student.phone_number}).`
     );
     setNoticeMessage('');
   };
@@ -121,12 +143,12 @@ export function StudentDetails() {
 
   // Export Dossier
   const handleExportDossier = () => {
-    toast.info('Exporting Dossier', `Compiling complete academic & enrollment dossier for ${student.name}.`);
+    toast.info('Exporting Dossier', `Compiling complete academic & enrollment dossier for ${student.full_name || student.first_name}.`);
   };
 
   const tabs = [
     { id: 'profile', label: 'Profile & Basic Info', icon: <FiFileText className="w-3.5 h-3.5" /> },
-    { id: 'enrollments', label: `Enrollments (${student.enrollmentHistory?.length || 0})`, icon: <FiBookOpen className="w-3.5 h-3.5" /> },
+    { id: 'enrollments', label: `Enrollments (${student.enrollments_count || 0})`, icon: <FiBookOpen className="w-3.5 h-3.5" /> },
     { id: 'connections', label: `Connections (${student.connectionHistory?.length || 0})`, icon: <FiLink className="w-3.5 h-3.5" /> },
     { id: 'activity', label: 'Activity Log', icon: <FiActivity className="w-3.5 h-3.5" /> },
     { id: 'reports', label: 'Academic Reports & Notes', icon: <FiCheckCircle className="w-3.5 h-3.5" /> },
@@ -147,31 +169,31 @@ export function StudentDetails() {
               <FiArrowLeft className="w-4 h-4" />
             </button>
 
-            <Avatar name={student.name} size="lg" status={student.status === 'Active' ? 'online' : 'offline'} />
+            <Avatar name={student.full_name || student.first_name || student.email || ''} size="lg" status={student.status === 'Inactive' ? 'offline' : 'online'} />
 
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl sm:text-2xl font-bold font-geist text-slate-900">
-                  {student.name}
+                  {student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim()}
                 </h1>
                 <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                  {student.id}
+                  {student.student_code || student.id}
                 </span>
-                <StatusBadge status={student.status} />
+                <StatusBadge status={student.status || 'Pending'} />
               </div>
 
               <div className="flex items-center gap-3 sm:gap-4 flex-wrap mt-1 text-xs text-slate-500">
                 <span className="flex items-center gap-1">
                   <FiBookOpen className="w-3.5 h-3.5 text-slate-400" />
-                  {student.grade} · {student.board}
+                  {student.education_level || student.grade_display || 'N/A'} {student.school_name ? `· ${student.school_name}` : ''}
                 </span>
                 <span className="flex items-center gap-1">
                   <FiMapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {student.city}, {student.state}
+                  {student.city || 'City'}, {student.state || 'State'}
                 </span>
                 <span className="flex items-center gap-1 font-mono text-[11px]">
                   <FiCalendar className="w-3.5 h-3.5 text-slate-400" />
-                  Joined {formatDate(student.joinedDate)}
+                  Joined {student.date_joined ? formatDate(student.date_joined) : 'N/A'}
                 </span>
               </div>
             </div>
@@ -223,7 +245,7 @@ export function StudentDetails() {
               Batches Enrolled
             </span>
             <span className="text-xl font-bold font-geist text-slate-900 mt-0.5 block">
-              {student.enrollmentHistory?.length || 0}
+              {student.enrollments_count || 0}
             </span>
           </div>
 
@@ -289,19 +311,19 @@ export function StudentDetails() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Full Name</span>
-                <p className="font-semibold text-slate-800 text-sm mt-0.5">{student.name}</p>
+                <p className="font-semibold text-slate-800 text-sm mt-0.5">{student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim()}</p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Student Reference ID</span>
-                <p className="font-mono font-semibold text-slate-800 text-sm mt-0.5">{student.id}</p>
+                <p className="font-mono font-semibold text-slate-800 text-sm mt-0.5">{student.student_code || student.id}</p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Registered Email</span>
                 <p className="font-medium text-slate-700 mt-0.5 flex items-center gap-1.5">
                   <FiMail className="w-3.5 h-3.5 text-slate-400" />
-                  {student.email}
+                  {student.email || 'N/A'}
                 </p>
               </div>
 
@@ -309,28 +331,28 @@ export function StudentDetails() {
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Verified Mobile Phone</span>
                 <p className="font-mono font-medium text-slate-700 mt-0.5 flex items-center gap-1.5">
                   <FiPhone className="w-3.5 h-3.5 text-slate-400" />
-                  {student.phone}
+                  {student.phone_number || 'N/A'}
                 </p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Class / Target Academic Goal</span>
-                <p className="font-medium text-slate-800 mt-0.5">{student.grade}</p>
+                <p className="font-medium text-slate-800 mt-0.5">{student.education_level || student.grade_display || 'N/A'}</p>
               </div>
 
               <div>
-                <span className="text-[11px] text-slate-400 font-semibold uppercase">School / Board Curriculum</span>
-                <p className="font-medium text-slate-800 mt-0.5">{student.school} ({student.board})</p>
+                <span className="text-[11px] text-slate-400 font-semibold uppercase">School / Curriculum</span>
+                <p className="font-medium text-slate-800 mt-0.5">{student.school_name || 'N/A'}</p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Location</span>
-                <p className="font-medium text-slate-800 mt-0.5">{student.city}, {student.state}, India</p>
+                <p className="font-medium text-slate-800 mt-0.5">{student.city || 'City'}, {student.state || 'State'}, India</p>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 font-semibold uppercase">Platform Registration</span>
-                <p className="font-medium text-slate-700 mt-0.5">{formatDate(student.joinedDate)}</p>
+                <p className="font-medium text-slate-700 mt-0.5">{student.date_joined ? formatDate(student.date_joined) : 'N/A'}</p>
               </div>
             </div>
 
@@ -349,7 +371,7 @@ export function StudentDetails() {
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-semibold uppercase">Emergency Contact</span>
-                  <p className="font-mono font-medium text-slate-700 mt-0.5">{student.guardianPhone || student.phone}</p>
+                  <p className="font-mono font-medium text-slate-700 mt-0.5">{student.guardianPhone || student.phone_number || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -633,7 +655,7 @@ export function StudentDetails() {
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title={`Edit Student Profile — ${student.name}`}
+        title={`Edit Student Profile — ${student.full_name || student.first_name}`}
         description="Update personal and academic records for this student."
         size="lg"
         footer={
@@ -717,7 +739,7 @@ export function StudentDetails() {
       <Modal
         isOpen={isNoticeModalOpen}
         onClose={() => setIsNoticeModalOpen(false)}
-        title={`Send Administrative Notice to ${student.name}`}
+        title={`Send Administrative Notice to ${student.full_name || student.first_name}`}
         description="This message will be dispatched to the student's registered mobile number and portal inbox."
         size="md"
         footer={

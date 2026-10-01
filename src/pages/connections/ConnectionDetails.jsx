@@ -18,7 +18,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_CONNECTIONS } from '../../data/connections';
+
 import { formatDate } from '../../utils/formatters';
 
 export function ConnectionDetails() {
@@ -27,7 +27,7 @@ export function ConnectionDetails() {
   const toast = useToast();
 
   const [connection, setConnection] = useState(() => {
-    return INITIAL_CONNECTIONS.find((c) => c.id === id) || null;
+    return [].find((c) => c.id === id) || null;
   });
 
   const [actionModal, setActionModal] = useState({

@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { fetchMaterials, moderateMaterial, fetchMaterialById } from '../../API/thunks/materialsThunks';
 import {
   FiFileText,
   FiDownload,
@@ -33,17 +35,75 @@ import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_MATERIALS } from '../../data/materials';
+
 
 export function StudyMaterials() {
   const navigate = useNavigate();
   const toast = useToast();
 
   const tableRef = useRef(null);
-  const [materials, setMaterials] = useState(INITIAL_MATERIALS);
+  const dispatch = useDispatch();
+  const [materials, setMaterials] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [fileTypeFilter, setFileTypeFilter] = useState('ALL');
+
+  const loadMaterials = async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await dispatch(fetchMaterials()).unwrap();
+      const mapped = (data || []).map((m) => {
+        let derivedFileName = `${m.title || 'Document'}.pdf`;
+        if (m.file_url) {
+          try {
+            const urlObj = new URL(m.file_url);
+            derivedFileName = urlObj.pathname.split('/').pop() || derivedFileName;
+          } catch (e) {
+            // fallback
+          }
+        }
+
+        return {
+          id: m.id,
+          code: m.code,
+          title: m.title || 'Untitled Material',
+          fileName: derivedFileName,
+          fileType: m.file_type || 'PDF',
+          fileSize: m.formatted_size || '0 B',
+          uploadedDate: m.uploaded_date || 'N/A',
+          teacher: {
+            name: m.teacher_name || 'Unknown Faculty',
+            qualification: m.teacher_qualification || 'Faculty Member',
+            avatar: m.teacher_avatar || null,
+            id: m.teacher || 'UNKNOWN'
+          },
+          batch: {
+            name: m.batch_title || 'General Batch',
+            code: m.batch_code || 'BCH-000'
+          },
+          status: m.status_display || (m.status === 'REPORTED' ? 'Reported' : m.status === 'HIDDEN' ? 'Hidden' : m.status === 'DRAFT' ? 'Draft' : 'Published'),
+          visibility: m.status === 'HIDDEN' ? 'Restricted' : 'Public to Batch',
+          downloads: m.downloads_count || 0,
+          viewsCount: m.views_count || 0,
+          permissions: { viewOnline: true, bookmark: true, isDownloadable: m.is_downloadable },
+          chaptersCount: m.chapters_count || 0,
+          chapters: [], // API doesn't return full chapters list, just count
+          reportReason: m.status === 'REPORTED' ? 'Flagged for moderation by users.' : null,
+          fileUrl: m.file_url,
+        };
+      });
+      setMaterials(mapped);
+    } catch (err) {
+      toast.error('Failed to load study materials', err?.toString() || 'API error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMaterials();
+  }, [dispatch]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,8 +112,81 @@ export function StudyMaterials() {
   // Material inspection modal
   const [detailModal, setDetailModal] = useState({
     isOpen: false,
+    isLoading: false,
     material: null,
   });
+
+  const handleOpenReview = async (row) => {
+    setDetailModal({ isOpen: true, isLoading: true, material: null });
+    try {
+      const data = await dispatch(fetchMaterialById(row.id)).unwrap();
+      
+      let derivedFileName = `${data.title || 'Document'}.pdf`;
+      if (data.file_url) {
+        try {
+          const urlObj = new URL(data.file_url);
+          derivedFileName = urlObj.pathname.split('/').pop() || derivedFileName;
+        } catch (e) { }
+      }
+
+      const detailMaterial = {
+        id: data.id,
+        code: data.code,
+        title: data.title || 'Untitled Material',
+        description: data.description || '',
+        fileName: derivedFileName,
+        fileType: data.file_type || 'PDF',
+        fileSize: data.formatted_size || '0 B',
+        uploadedDate: data.uploaded_date || 'N/A',
+        teacher: {
+          name: data.teacher_name || 'Unknown Faculty',
+          qualification: data.teacher_qualification || 'Faculty Member',
+          avatar: data.teacher_avatar || null,
+          id: data.teacher || 'UNKNOWN'
+        },
+        batch: {
+          name: data.batch_title || 'General Batch',
+          code: data.batch_code || 'BCH-000'
+        },
+        status: data.status_display || 'Published',
+        visibility: data.status === 'HIDDEN' ? 'Restricted' : 'Public to Batch',
+        downloads: data.downloads_count || 0,
+        viewsCount: data.views_count || 0,
+        permissions: { viewOnline: true, bookmark: true, isDownloadable: data.is_downloadable },
+        chaptersCount: data.chapters_count || 0,
+        chapters: data.chapters && data.chapters.length > 0 
+          ? data.chapters.map((ch) => ({
+              id: ch.id || Math.random().toString(),
+              chapterNo: ch.chapter_no || 'Ch',
+              title: ch.title || 'Untitled Chapter',
+              fileName: ch.file_name || 'Chapter.pdf',
+              fileSize: ch.formatted_size || '0 B',
+              pages: ch.pages || 'N/A',
+              uploadedDate: ch.uploaded_date || 'N/A',
+              status: 'Active',
+              fileUrl: ch.file_url || null,
+            }))
+          : Array.from({ length: data.chapters_count || 0 }).map((_, idx) => ({
+              id: `CH-0${idx + 1}`,
+              chapterNo: `Ch ${idx + 1}`,
+              title: `Chapter ${idx + 1}: Content Module`,
+              fileName: `Ch${idx + 1}_Supplementary_Material.pdf`,
+              fileSize: '1.5 MB',
+              pages: '10 Pages',
+              uploadedDate: data.uploaded_date || 'Just now',
+              status: 'Active',
+              fileUrl: null,
+            })),
+        reportReason: data.status === 'REPORTED' ? 'Flagged for moderation by users.' : null,
+        fileUrl: data.file_url || data.file || null,
+      };
+
+      setDetailModal({ isOpen: true, isLoading: false, material: detailMaterial });
+    } catch (err) {
+      toast.error('Fetch Failed', 'Could not load material details.');
+      setDetailModal({ isOpen: false, isLoading: false, material: null });
+    }
+  };
 
   // Delete modal
   const [deleteModal, setDeleteModal] = useState({
@@ -376,61 +509,75 @@ export function StudyMaterials() {
   }, [filteredMaterials, currentPage, pageSize]);
 
   // Actions
-  const handleToggleVisibility = (material) => {
-    const newStatus = material.status === 'Hidden' ? 'Published' : 'Hidden';
-    const updated = materials.map((m) => {
-      if (m.id === material.id) {
-        return {
-          ...m,
-          status: newStatus,
-          visibility: newStatus === 'Published' ? 'Public to Batch' : 'Restricted',
-        };
-      }
-      return m;
-    });
-
-    setMaterials(updated);
-
-    if (detailModal.isOpen && detailModal.material?.id === material.id) {
-      setDetailModal({
-        ...detailModal,
-        material: {
-          ...detailModal.material,
-          status: newStatus,
-          visibility: newStatus === 'Published' ? 'Public to Batch' : 'Restricted',
-        },
+  const handleToggleVisibility = async (material) => {
+    const newStatus = material.status === 'Hidden' ? 'PUBLISHED' : 'HIDDEN';
+    
+    try {
+      await dispatch(moderateMaterial({ id: material.id, status: newStatus })).unwrap();
+      
+      const updatedUiStatus = newStatus === 'PUBLISHED' ? 'Published' : 'Hidden';
+      const updated = materials.map((m) => {
+        if (m.id === material.id) {
+          return {
+            ...m,
+            status: updatedUiStatus,
+            visibility: updatedUiStatus === 'Published' ? 'Public to Batch' : 'Restricted',
+          };
+        }
+        return m;
       });
-    }
 
-    if (newStatus === 'Published') {
-      toast.success('Material Published', `"${material.title}" is now accessible to students.`);
-    } else {
-      toast.info('Material Hidden', `"${material.title}" is hidden from student view.`);
+      setMaterials(updated);
+
+      if (detailModal.isOpen && detailModal.material?.id === material.id) {
+        setDetailModal({
+          ...detailModal,
+          material: {
+            ...detailModal.material,
+            status: updatedUiStatus,
+            visibility: updatedUiStatus === 'Published' ? 'Public to Batch' : 'Restricted',
+          },
+        });
+      }
+
+      if (newStatus === 'PUBLISHED') {
+        toast.success('Material Published', `"${material.title}" is now accessible to students.`);
+      } else {
+        toast.info('Material Hidden', `"${material.title}" is hidden from student view.`);
+      }
+    } catch (err) {
+      toast.error('Action Failed', 'Could not moderate this material.');
     }
   };
 
-  const handleResolveReport = (material) => {
-    const updated = materials.map((m) => {
-      if (m.id === material.id) {
-        return {
-          ...m,
-          status: 'Published',
-          reportReason: null,
-        };
-      }
-      return m;
-    });
+  const handleResolveReport = async (material) => {
+    try {
+      await dispatch(moderateMaterial({ id: material.id, status: 'PUBLISHED' })).unwrap();
 
-    setMaterials(updated);
-
-    if (detailModal.isOpen && detailModal.material?.id === material.id) {
-      setDetailModal({
-        ...detailModal,
-        material: { ...detailModal.material, status: 'Published', reportReason: null },
+      const updated = materials.map((m) => {
+        if (m.id === material.id) {
+          return {
+            ...m,
+            status: 'Published',
+            reportReason: null,
+          };
+        }
+        return m;
       });
-    }
 
-    toast.success('Report Cleared', 'Copyright/content safety flag resolved.');
+      setMaterials(updated);
+
+      if (detailModal.isOpen && detailModal.material?.id === material.id) {
+        setDetailModal({
+          ...detailModal,
+          material: { ...detailModal.material, status: 'Published', reportReason: null },
+        });
+      }
+
+      toast.success('Report Cleared', 'Copyright/content safety flag resolved.');
+    } catch (err) {
+      toast.error('Failed to resolve', 'Could not clear the report flag.');
+    }
   };
 
   const handleDeleteMaterial = () => {
@@ -456,7 +603,7 @@ export function StudyMaterials() {
           </div>
           <div className="flex-1 min-w-0">
             <div
-              onClick={() => setDetailModal({ isOpen: true, material: row })}
+              onClick={() => handleOpenReview(row)}
               className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline text-left block truncate cursor-pointer"
               title={row.title}
               role="button"
@@ -464,11 +611,11 @@ export function StudyMaterials() {
               {row.title}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-              <span className="font-mono text-[10px] text-slate-400">{row.id}</span>
+              <span className="font-mono text-[10px] text-slate-400">{row.code}</span>
               <span>•</span>
               <span>{row.fileSize}</span>
               <span>•</span>
-              <span className="text-emerald-700 font-medium">{(row.chapters || []).length} Chapters</span>
+              <span className="text-emerald-700 font-medium">{row.chaptersCount} Chapters</span>
             </div>
           </div>
         </div>
@@ -557,7 +704,7 @@ export function StudyMaterials() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setDetailModal({ isOpen: true, material: row })}
+            onClick={() => handleOpenReview(row)}
             leftIcon={<FiEye className="w-3.5 h-3.5" />}
             className="h-7 text-xs px-2.5"
           >
@@ -691,7 +838,11 @@ export function StudyMaterials() {
 
       {/* Materials Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        {filteredMaterials.length > 0 ? (
+        {isLoading ? (
+          <div className="py-12 flex justify-center items-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#123B66]"></div>
+          </div>
+        ) : filteredMaterials.length > 0 ? (
           <>
             <DataTable
               ref={tableRef}
@@ -738,11 +889,15 @@ export function StudyMaterials() {
       {/* Detail Inspection Modal (Study Material Dossier) */}
       <Modal
         isOpen={detailModal.isOpen}
-        onClose={() => setDetailModal({ isOpen: false, material: null })}
+        onClose={() => setDetailModal({ isOpen: false, isLoading: false, material: null })}
         title="Study Material Dossier"
         size="xl"
       >
-        {detailModal.material && (
+        {detailModal.isLoading ? (
+          <div className="py-12 flex justify-center items-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#123B66]"></div>
+          </div>
+        ) : detailModal.material ? (
           <div className="space-y-5 text-xs">
             {detailModal.material.status === 'Reported' && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 space-y-1">
@@ -811,7 +966,7 @@ export function StudyMaterials() {
                     Chapters & Content Modules
                   </h4>
                   <span className="bg-blue-50 text-[#123B66] border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {(detailModal.material.chapters || []).length} Chapters
+                    {detailModal.material.chaptersCount || 0} Chapters
                   </span>
                 </div>
                 <Button
@@ -962,23 +1117,15 @@ export function StudyMaterials() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setDetailModal({ isOpen: false, material: null })}
+                  onClick={() => setDetailModal({ isOpen: false, isLoading: false, material: null })}
                 >
                   Close
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    toast.success('File Download', `Downloading ${detailModal.material.fileName}...`);
-                  }}
-                  leftIcon={<FiDownload className="w-3.5 h-3.5" />}
-                >
-                  Download Complete Dossier
                 </Button>
               </div>
             </div>
           </div>
+        ) : (
+          <EmptyState title="Not Found" description="Material details could not be loaded." />
         )}
       </Modal>
 

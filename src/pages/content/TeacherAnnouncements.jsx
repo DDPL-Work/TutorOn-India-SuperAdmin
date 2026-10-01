@@ -21,14 +21,14 @@ import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_TEACHER_ANNOUNCEMENTS } from '../../data/teacherAnnouncements';
+
 
 export function TeacherAnnouncements() {
   const navigate = useNavigate();
   const toast = useToast();
 
   const tableRef = useRef(null);
-  const [announcements, setAnnouncements] = useState(INITIAL_TEACHER_ANNOUNCEMENTS);
+  const [announcements, setAnnouncements] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');

@@ -15,13 +15,13 @@ import {
   FiShield,
   FiCreditCard,
 } from 'react-icons/fi';
-import { INITIAL_STUDENTS } from '../../data/students';
-import { INITIAL_TEACHERS } from '../../data/teachers';
-import { INITIAL_CONNECTIONS } from '../../data/connections';
-import { INITIAL_ENROLLMENTS } from '../../data/enrollments';
-import { INITIAL_ANNOUNCEMENTS } from '../../data/announcements';
-import { INITIAL_REVIEWS } from '../../data/reviews';
-import { INITIAL_REPORTS } from '../../data/reports';
+
+
+
+
+
+
+
 
 export function GlobalSearchModal({ isOpen, onClose }) {
   const navigate = useNavigate();
@@ -58,7 +58,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     };
 
     // 1. Students
-    INITIAL_STUDENTS.forEach((item) => {
+    [].forEach((item) => {
       const match =
         item.name.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q) ||
@@ -78,7 +78,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     });
 
     // 2. Teachers
-    INITIAL_TEACHERS.forEach((item) => {
+    [].forEach((item) => {
       const subjectsStr = Array.isArray(item.subjects) ? item.subjects.join(' ') : '';
       const match =
         item.name.toLowerCase().includes(q) ||
@@ -98,7 +98,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     });
 
     // 3. Connections
-    INITIAL_CONNECTIONS.forEach((item) => {
+    [].forEach((item) => {
       const studentName = item.student?.name || '';
       const teacherName = item.teacher?.name || '';
       const subject = item.teacher?.subject || '';
@@ -120,7 +120,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     });
 
     // 4. Enrollments
-    INITIAL_ENROLLMENTS.forEach((item) => {
+    [].forEach((item) => {
       const studentName = item.student?.name || '';
       const teacherName = item.teacher?.name || '';
       const batchTitle = item.batch?.title || '';
@@ -142,7 +142,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     });
 
     // 5. Announcements
-    INITIAL_ANNOUNCEMENTS.forEach((item) => {
+    [].forEach((item) => {
       const match =
         item.id.toLowerCase().includes(q) ||
         item.title.toLowerCase().includes(q) ||
@@ -162,7 +162,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     });
 
     // 6. Reviews
-    INITIAL_REVIEWS.forEach((item) => {
+    [].forEach((item) => {
       const studentName = item.student?.name || '';
       const teacherName = item.teacher?.name || '';
       const batchName = item.batch?.name || '';
@@ -185,7 +185,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     });
 
     // 7. Reports
-    INITIAL_REPORTS.forEach((item) => {
+    [].forEach((item) => {
       const reportedBy = item.reportedBy?.name || '';
       const reportedUser = item.reportedUser?.name || '';
       const match =

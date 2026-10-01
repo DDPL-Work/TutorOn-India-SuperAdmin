@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchAuditLogDetails } from '../../API/thunks/auditThunks';
 import {
   FiArrowLeft,
   FiShield,
@@ -8,13 +11,43 @@ import {
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
-import { INITIAL_AUDIT_LOGS } from '../../data/auditLogs';
+
 
 export function AuditLogDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  
+  const { currentLog, isLoading } = useSelector((state) => state.audit);
 
-  const log = INITIAL_AUDIT_LOGS.find((l) => l.id === id) || null;
+  useEffect(() => {
+    if (id) {
+      dispatch(fetchAuditLogDetails(id));
+    }
+  }, [dispatch, id]);
+
+  const log = currentLog ? {
+    id: currentLog.audit_code || currentLog.id,
+    actualId: currentLog.id,
+    action: currentLog.action || 'Unknown Action',
+    category: currentLog.category || 'Other',
+    admin: currentLog.admin_operator?.display || currentLog.actor_name || 'System',
+    ipAddress: currentLog.admin_operator?.ip_display || currentLog.ip_address || 'N/A',
+    relatedEntity: currentLog.target_entity?.name || currentLog.description || 'N/A',
+    userId: currentLog.target_entity?.code || currentLog.object_id || '',
+    timestamp: currentLog.timestamp || (currentLog.created_at ? currentLog.created_at.split('T')[0] : 'N/A'),
+    reason: currentLog.notes || currentLog.action || 'No additional reason provided.',
+    previousState: currentLog.previous_state || { status: 'Unknown', _note: 'Prior state not available in log.' },
+    newState: currentLog.new_state || currentLog.metadata || { status: 'Updated' },
+  } : null;
+
+  if (isLoading && !log) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-[#123B66] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!log) {
     return (

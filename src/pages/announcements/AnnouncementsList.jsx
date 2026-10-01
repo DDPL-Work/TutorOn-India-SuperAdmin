@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchAnnouncements, updateAnnouncementStatus, deleteAnnouncement, fetchAnnouncementById } from '../../API/thunks/announcementsThunks';
 import {
   FiSend,
   FiPlus,
@@ -22,14 +24,16 @@ import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
-import { INITIAL_ANNOUNCEMENTS } from '../../data/announcements';
+
 
 export function AnnouncementsList() {
   const navigate = useNavigate();
   const toast = useToast();
 
   const tableRef = useRef(null);
-  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
+  const dispatch = useDispatch();
+  const { data: announcements, totalCount, publishedCount, scheduledCount, draftCount, expiredCount, isLoading } = useSelector((state) => state.announcements);
+
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [audienceFilter, setAudienceFilter] = useState('ALL');
@@ -40,97 +44,118 @@ export function AnnouncementsList() {
   const [pageSize, setPageSize] = useState(10);
 
   // Review & Delete Modals
-  const [viewModal, setViewModal] = useState({ isOpen: false, item: null });
+  const [viewModal, setViewModal] = useState({ isOpen: false, isLoading: false, item: null });
+
+  const handleOpenReview = async (row) => {
+    setViewModal({ isOpen: true, isLoading: true, item: null });
+    try {
+      const data = await dispatch(fetchAnnouncementById(row.id)).unwrap();
+      setViewModal({ 
+        isOpen: true, 
+        isLoading: false, 
+        item: {
+          id: data.id,
+          code: data.code,
+          title: data.title,
+          message: data.description || data.message || data.content || 'No details provided.',
+          type: data.type_display || data.type || data.announcement_type || 'General',
+          audience: data.audience_display || data.audience || data.target_audience || 'All Users',
+          startDate: data.start_date,
+          endDate: data.end_date,
+          status: data.status,
+          ctaLabel: data.cta_label,
+          ctaDestination: data.cta_url || data.cta_destination,
+          attachmentName: data.attachment_name,
+          isBanner: data.is_banner || false,
+          impressions: data.impressions_count || 0,
+          clicks: data.clicks_count || 0,
+          ctr: data.ctr || '0.00%',
+        }
+      });
+    } catch (err) {
+      toast.error('Fetch Failed', 'Could not load announcement details.');
+      setViewModal({ isOpen: false, isLoading: false, item: null });
+    }
+  };
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, item: null });
+
+  useEffect(() => {
+    let apiStatus = undefined;
+    if (activeTab === 'published') apiStatus = 'PUBLISHED';
+    if (activeTab === 'scheduled') apiStatus = 'SCHEDULED';
+    if (activeTab === 'draft') apiStatus = 'DRAFT';
+    if (activeTab === 'expired') apiStatus = 'EXPIRED';
+
+    dispatch(fetchAnnouncements({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      type: typeFilter === 'ALL' ? undefined : typeFilter,
+      audience: audienceFilter === 'ALL' ? undefined : audienceFilter,
+      status: apiStatus
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, activeTab, typeFilter, audienceFilter]);
 
   // Tab definitions
   const tabs = [
-    { key: 'all', label: 'All Announcements', count: announcements.length },
+    { key: 'all', label: 'All Announcements', count: totalCount },
     {
       key: 'published',
       label: 'Published',
-      count: announcements.filter((a) => a.status === 'Published').length,
+      count: publishedCount,
     },
     {
       key: 'scheduled',
       label: 'Scheduled',
-      count: announcements.filter((a) => a.status === 'Scheduled').length,
+      count: scheduledCount,
     },
     {
       key: 'draft',
       label: 'Drafts',
-      count: announcements.filter((a) => a.status === 'Draft').length,
+      count: draftCount,
     },
     {
       key: 'expired',
       label: 'Expired',
-      count: announcements.filter((a) => a.status === 'Expired').length,
+      count: expiredCount,
     },
   ];
 
-  // Filtered dataset
-  const filteredData = useMemo(() => {
-    return announcements.filter((item) => {
-      // Tab filter
-      if (activeTab === 'published' && item.status !== 'Published') return false;
-      if (activeTab === 'scheduled' && item.status !== 'Scheduled') return false;
-      if (activeTab === 'draft' && item.status !== 'Draft') return false;
-      if (activeTab === 'expired' && item.status !== 'Expired') return false;
-
-      // Audience filter
-      if (audienceFilter !== 'ALL' && item.audience !== audienceFilter) return false;
-
-      // Type filter
-      if (typeFilter !== 'ALL' && item.type !== typeFilter) return false;
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = item.title.toLowerCase().includes(q);
-        const matchMsg = item.message.toLowerCase().includes(q);
-        const matchBy = item.createdBy.toLowerCase().includes(q);
-        const matchId = item.id.toLowerCase().includes(q);
-        if (!matchTitle && !matchMsg && !matchBy && !matchId) return false;
-      }
-
-      return true;
-    });
-  }, [announcements, activeTab, audienceFilter, typeFilter, searchQuery]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredData.slice(start, start + pageSize);
-  }, [filteredData, currentPage, pageSize]);
+  // Filtered dataset handled by API
+  const filteredData = announcements || [];
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedData = filteredData;
 
   // Actions
-  const handleTogglePublish = (item) => {
-    const nextStatus = item.status === 'Published' ? 'Disabled' : 'Published';
-    const updated = announcements.map((a) => {
-      if (a.id === item.id) return { ...a, status: nextStatus };
-      return a;
-    });
-    setAnnouncements(updated);
+  const handleTogglePublish = async (item) => {
+    const nextStatus = item.status === 'PUBLISHED' || item.status === 'Published' ? 'DISABLED' : 'PUBLISHED';
+    try {
+      await dispatch(updateAnnouncementStatus({ id: item.id, status: nextStatus })).unwrap();
+      
+      if (viewModal.isOpen && viewModal.item?.id === item.id) {
+        setViewModal({ ...viewModal, item: { ...viewModal.item, status: nextStatus } });
+      }
 
-    if (viewModal.isOpen && viewModal.item?.id === item.id) {
-      setViewModal({ ...viewModal, item: { ...viewModal.item, status: nextStatus } });
-    }
-
-    if (nextStatus === 'Published') {
-      toast.success('Announcement Published', `"${item.title}" is now visible to ${item.audience}.`);
-    } else {
-      toast.info('Announcement Disabled', `"${item.title}" has been unpublished.`);
+      if (nextStatus === 'PUBLISHED') {
+        toast.success('Announcement Published', `"${item.title}" is now visible to ${item.audience}.`);
+      } else {
+        toast.info('Announcement Disabled', `"${item.title}" has been unpublished.`);
+      }
+    } catch (e) {
+      toast.error('Error', 'Failed to update announcement status.');
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteModal.item) return;
-    const updated = announcements.filter((a) => a.id !== deleteModal.item.id);
-    setAnnouncements(updated);
-    setDeleteModal({ isOpen: false, item: null });
-    if (viewModal.isOpen) setViewModal({ isOpen: false, item: null });
-    toast.error('Announcement Deleted', 'The platform announcement was permanently deleted.');
+    try {
+      await dispatch(deleteAnnouncement(deleteModal.item.id)).unwrap();
+      setDeleteModal({ isOpen: false, item: null });
+      if (viewModal.isOpen) setViewModal({ isOpen: false, item: null });
+      toast.error('Announcement Deleted', 'The platform announcement was permanently deleted.');
+    } catch (e) {
+      toast.error('Error', 'Failed to delete announcement.');
+    }
   };
 
   // Columns definition
@@ -145,15 +170,15 @@ export function AnnouncementsList() {
           </div>
           <div className="flex-1 min-w-0">
             <div
-              onClick={() => setViewModal({ isOpen: true, item: row })}
+              onClick={() => handleOpenReview(row)}
               className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline text-left block truncate cursor-pointer"
               title={row.title}
               role="button"
             >
               {row.title}
             </div>
-            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{row.message}</p>
-            <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.id}</span>
+            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{row.description || row.message}</p>
+            <span className="font-mono text-[10px] text-slate-400 block mt-0.5">{row.code || 'N/A'}</span>
           </div>
         </div>
       ),
@@ -163,17 +188,17 @@ export function AnnouncementsList() {
       header: 'Type',
       render: (row) => {
         const shortType =
-          row.type === 'Important Announcement'
+          row.type === 'Important Announcement' || row.type === 'IMPORTANT'
             ? 'Important'
-            : row.type === 'Promotional Announcement'
+            : row.type === 'Promotional Announcement' || row.type === 'PROMOTIONAL'
             ? 'Promotional'
             : 'General';
         return (
           <span
             className={`text-[11px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-              row.type === 'Important Announcement'
+              shortType === 'Important'
                 ? 'bg-red-50 text-red-700 border border-red-200'
-                : row.type === 'Promotional Announcement'
+                : shortType === 'Promotional'
                 ? 'bg-purple-50 text-purple-700 border border-purple-200'
                 : 'bg-blue-50 text-blue-700 border border-blue-200'
             }`}
@@ -207,15 +232,15 @@ export function AnnouncementsList() {
       className: 'text-xs text-slate-500 font-mono whitespace-nowrap',
       render: (row) => (
         <div>
-          <div>{row.startDate}</div>
-          <div className="text-[10px] text-slate-400">to {row.endDate}</div>
+          <div>{row.startDate || row.start_date || 'N/A'}</div>
+          <div className="text-[10px] text-slate-400">to {row.endDate || row.end_date || 'N/A'}</div>
         </div>
       ),
     },
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <StatusBadge status={row.status} />,
+      render: (row) => <StatusBadge status={row.status === 'PUBLISHED' ? 'Published' : row.status === 'SCHEDULED' ? 'Scheduled' : row.status === 'DRAFT' ? 'Draft' : row.status === 'EXPIRED' ? 'Expired' : 'Pending'} />,
     },
     {
       key: 'actions',
@@ -230,18 +255,18 @@ export function AnnouncementsList() {
             type="button"
             onClick={() => handleTogglePublish(row)}
             className={`text-[11px] font-medium px-2 py-1 rounded-md transition-colors cursor-pointer border ${
-              row.status === 'Published'
+              row.status === 'Published' || row.status === 'PUBLISHED'
                 ? 'text-amber-700 bg-amber-50/70 border-amber-200 hover:bg-amber-100'
                 : 'text-emerald-700 bg-emerald-50/70 border-emerald-200 hover:bg-emerald-100'
             }`}
           >
-            {row.status === 'Published' ? 'Unpublish' : 'Publish'}
+            {row.status === 'Published' || row.status === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
           </button>
 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setViewModal({ isOpen: true, item: row })}
+            onClick={() => handleOpenReview(row)}
             leftIcon={<FiEye className="w-3.5 h-3.5" />}
             className="h-7 text-xs px-2.5"
           >
@@ -399,7 +424,7 @@ export function AnnouncementsList() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredData.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {
@@ -435,25 +460,29 @@ export function AnnouncementsList() {
       {/* Detail / Preview Modal */}
       <Modal
         isOpen={viewModal.isOpen}
-        onClose={() => setViewModal({ isOpen: false, item: null })}
+        onClose={() => setViewModal({ isOpen: false, isLoading: false, item: null })}
         title="Platform Announcement Preview"
         size="xl"
       >
-        {viewModal.item && (
+        {viewModal.isLoading ? (
+          <div className="py-12 flex justify-center items-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#123B66]"></div>
+          </div>
+        ) : viewModal.item ? (
           <div className="space-y-4 text-xs">
             <div className="flex items-center justify-between">
               <span
                 className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                  viewModal.item.type === 'Important Announcement'
+                  viewModal.item.type === 'Important Announcement' || viewModal.item.type === 'IMPORTANT' || viewModal.item.type === 'Important'
                     ? 'bg-red-50 text-red-700 border border-red-200'
-                    : viewModal.item.type === 'Promotional Announcement'
+                    : viewModal.item.type === 'Promotional Announcement' || viewModal.item.type === 'PROMOTIONAL' || viewModal.item.type === 'Promotional'
                     ? 'bg-purple-50 text-purple-700 border border-purple-200'
                     : 'bg-blue-50 text-blue-700 border border-blue-200'
                 }`}
               >
                 {viewModal.item.type}
               </span>
-              <StatusBadge status={viewModal.item.status} />
+              <StatusBadge status={viewModal.item.status === 'PUBLISHED' ? 'Published' : viewModal.item.status === 'SCHEDULED' ? 'Scheduled' : viewModal.item.status === 'DRAFT' ? 'Draft' : viewModal.item.status === 'EXPIRED' ? 'Expired' : 'Pending'} />
             </div>
 
             <div>
@@ -461,7 +490,7 @@ export function AnnouncementsList() {
                 {viewModal.item.title}
               </h3>
               <p className="text-slate-500 text-[11px] mt-1">
-                Target Audience: <strong className="text-slate-800">{viewModal.item.audience}</strong> • Effective: {viewModal.item.startDate} to {viewModal.item.endDate}
+                Target Audience: <strong className="text-slate-800">{viewModal.item.audience}</strong> • Effective: {viewModal.item.startDate || viewModal.item.start_date || 'N/A'} to {viewModal.item.endDate || viewModal.item.end_date || 'N/A'}
               </p>
             </div>
 
@@ -469,22 +498,22 @@ export function AnnouncementsList() {
               {viewModal.item.message}
             </div>
 
-            {viewModal.item.ctaLabel && (
+            {(viewModal.item.ctaLabel || viewModal.item.cta_label) && (
               <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-lg flex items-center justify-between">
                 <div>
                   <span className="text-[11px] text-slate-500 block">Call to Action:</span>
-                  <span className="font-semibold text-blue-900">{viewModal.item.ctaLabel}</span>
+                  <span className="font-semibold text-blue-900">{viewModal.item.ctaLabel || viewModal.item.cta_label}</span>
                 </div>
                 <span className="text-[11px] text-blue-700 font-mono">
-                  {viewModal.item.ctaDestination}
+                  {viewModal.item.ctaDestination || viewModal.item.cta_destination}
                 </span>
               </div>
             )}
 
-            {viewModal.item.attachmentName && (
+            {(viewModal.item.attachmentName || viewModal.item.attachment_name) && (
               <div className="flex items-center gap-2 p-2.5 bg-slate-100 rounded-lg text-slate-700">
                 <FiFileText className="w-4 h-4 text-slate-500" />
-                <span className="font-medium">{viewModal.item.attachmentName}</span>
+                <span className="font-medium">{viewModal.item.attachmentName || viewModal.item.attachment_name}</span>
                 <span className="text-slate-400 text-[10px] ml-auto">PDF Document</span>
               </div>
             )}
@@ -495,18 +524,20 @@ export function AnnouncementsList() {
                 size="sm"
                 onClick={() => handleTogglePublish(viewModal.item)}
               >
-                {viewModal.item.status === 'Published' ? 'Unpublish Announcement' : 'Publish to Platform'}
+                {viewModal.item.status === 'Published' || viewModal.item.status === 'PUBLISHED' ? 'Unpublish Announcement' : 'Publish to Platform'}
               </Button>
 
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setViewModal({ isOpen: false, item: null })}
+                onClick={() => setViewModal({ isOpen: false, isLoading: false, item: null })}
               >
                 Close Preview
               </Button>
             </div>
           </div>
+        ) : (
+          <EmptyState title="Not Found" description="Announcement details could not be loaded." />
         )}
       </Modal>
 

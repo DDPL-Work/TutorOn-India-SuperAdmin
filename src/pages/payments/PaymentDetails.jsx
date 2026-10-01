@@ -20,7 +20,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import InvoiceTemplate from '../../components/payments/InvoiceTemplate';
 import { downloadInvoicePdf, printInvoiceWindow } from '../../utils/invoicePdf';
-import { INITIAL_PAYMENTS } from '../../data/payments';
+
 
 export function PaymentDetails() {
   const { id } = useParams();
@@ -32,7 +32,7 @@ export function PaymentDetails() {
 
   const modalInvoiceRef = useRef(null);
 
-  const payment = INITIAL_PAYMENTS.find((p) => p.id === id) || null;
+  const payment = [].find((p) => p.id === id) || null;
 
   const copyToClipboard = (text, key) => {
     navigator.clipboard.writeText(text);

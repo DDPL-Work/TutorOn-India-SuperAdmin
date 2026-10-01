@@ -112,15 +112,17 @@ export function TeacherDetails() {
   const handleConfirmAction = async () => {
     const { type, notes } = actionModal;
     
+    const verificationId = teacher.verification?.id || teacher.verification_id || id;
+
     try {
       if (type === 'approve') {
-        await dispatch(approveTeacher({ id, admin_notes: notes })).unwrap();
+        await dispatch(approveTeacher({ id: verificationId, admin_notes: notes })).unwrap();
         toast.success(
           'Teacher Certified & Verified',
           `${teacher.display_name || teacher.first_name || 'Teacher'} has been granted full faculty publishing credentials.`
         );
       } else {
-        await dispatch(rejectTeacher({ id, rejection_reason: notes, admin_note: 'Rejected via dashboard' })).unwrap();
+        await dispatch(rejectTeacher({ id: verificationId, rejection_reason: notes, admin_note: 'Rejected via dashboard' })).unwrap();
         toast.error(
           'Verification Declined',
           `${teacher.display_name || teacher.first_name || 'Teacher'} status updated to Rejected. Resubmission notification dispatched.`

@@ -128,7 +128,7 @@ export function AnnouncementsList() {
 
   // Actions
   const handleTogglePublish = async (item) => {
-    const nextStatus = item.status === 'PUBLISHED' || item.status === 'Published' ? 'DISABLED' : 'PUBLISHED';
+    const nextStatus = item.status === 'PUBLISHED' || item.status === 'Published' ? 'DRAFT' : 'PUBLISHED';
     try {
       await dispatch(updateAnnouncementStatus({ id: item.id, status: nextStatus })).unwrap();
       

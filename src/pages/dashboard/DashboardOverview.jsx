@@ -102,16 +102,6 @@ export function DashboardOverview() {
       onClick: () => navigate('/teachers?tab=pending'),
     },
     {
-      id: 'pending_connections',
-      title: 'Pending Connections',
-      value: kpi.pending_connections?.formatted_value || '0',
-      change: kpi.pending_connections?.badge?.text || 'Awaiting admin review',
-      isAlert: true,
-      icon: <FiLink className="w-5 h-5 text-purple-600" />,
-      badge: kpi.pending_connections?.subtitle || 'Protected Flow',
-      onClick: () => navigate('/connections?tab=pending_admin'),
-    },
-    {
       id: 'pending_enrollments',
       title: 'Pending Enrollments',
       value: kpi.pending_enrollments?.formatted_value || '0',
@@ -120,6 +110,16 @@ export function DashboardOverview() {
       icon: <FiBookOpen className="w-5 h-5 text-[#1D4ED8]" />,
       badge: kpi.pending_enrollments?.subtitle || 'Batches',
       onClick: () => navigate('/enrollments?tab=awaiting_confirmation'),
+    },
+    {
+      id: 'active_batches',
+      title: 'Active Batches',
+      value: sec.active_batches?.formatted_value || '0',
+      change: sec.active_batches?.subtext || 'Live across India',
+      isPositive: true,
+      icon: <FiLayers className="w-5 h-5 text-[#1D4ED8]" />,
+      badge: 'Batches',
+      onClick: () => navigate('/enrollments'),
     },
     {
       id: 'revenue',
@@ -134,12 +134,7 @@ export function DashboardOverview() {
   ];
 
   // Secondary Snapshot Cards mapped from API secondary_metrics array
-  const platformSnapshots = [
-    { title: 'Active Students', value: sec.active_students?.formatted_value || '0', subtext: sec.active_students?.subtext || '0% engagement rate', icon: <FiUsers className="w-4 h-4 text-[#123B66]" />, path: '/students' },
-    { title: 'Verified Teachers', value: sec.verified_teachers?.formatted_value || '0', subtext: sec.verified_teachers?.subtext || '0% verification pass', icon: <FiUserCheck className="w-4 h-4 text-emerald-600" />, path: '/teachers/verified' },
-    { title: 'Active Batches', value: sec.active_batches?.formatted_value || '0', subtext: sec.active_batches?.subtext || 'Live across India', icon: <FiLayers className="w-4 h-4 text-[#1D4ED8]" />, path: '/enrollments' },
-    { title: 'Active Connections', value: sec.active_connections?.formatted_value || '0', subtext: sec.active_connections?.subtext || 'Protected communications', icon: <FiLink className="w-4 h-4 text-purple-600" />, path: '/connections' },
-  ];
+  const platformSnapshots = [];
 
   // Pending Approvals — from /admin/teachers/?verification_status=PENDING_VERIFICATION
   // Teacher shape: { id, display_name, email, phone, headline, subjects, verification_status, ... }
@@ -285,7 +280,7 @@ export function DashboardOverview() {
               size="md"
               leftIcon={<FiPlus className="w-4 h-4" />}
             >
-              + Quick Action
+            Quick Action
             </Button>
           }
           items={[

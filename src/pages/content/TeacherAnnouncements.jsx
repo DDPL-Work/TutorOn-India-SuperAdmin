@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchTeacherAnnouncements, fetchTeacherAnnouncementDetails } from '../../API/thunks/teacherAnnouncementsThunks';
 import {
   FiSend,
   FiAlertTriangle,
@@ -26,9 +28,11 @@ import { useToast } from '../../hooks/useToast';
 export function TeacherAnnouncements() {
   const navigate = useNavigate();
   const toast = useToast();
+  const dispatch = useDispatch();
 
   const tableRef = useRef(null);
-  const [announcements, setAnnouncements] = useState([]);
+  const { data: allAnnouncements, totalCount, publishedCount, urgentCount, flaggedCount, draftCount, isLoading } = useSelector((state) => state.teacherAnnouncements);
+
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
@@ -49,75 +53,117 @@ export function TeacherAnnouncements() {
     announcement: null,
   });
 
+  // Fetch data
+  useEffect(() => {
+    dispatch(fetchTeacherAnnouncements({
+      page: currentPage,
+      page_size: pageSize,
+      search: searchQuery,
+      tab: activeTab === 'all' ? undefined : activeTab,
+      priority: priorityFilter === 'ALL' ? undefined : priorityFilter.toUpperCase()
+    }));
+  }, [dispatch, currentPage, pageSize, searchQuery, activeTab, priorityFilter]);
+
+  // Map data
+  const announcements = (allAnnouncements || []).map(r => ({
+    id: r.code || r.id,
+    actualId: r.id,
+    title: r.title || 'Untitled',
+    message: r.message || '',
+    priority: r.priority_badge || (r.priority === 'URGENT' ? 'Urgent' : r.priority === 'HIGH' ? 'High' : 'Normal'),
+    status: r.status_display || r.status || 'Draft',
+    teacher: {
+      id: r.faculty?.id || r.faculty || '',
+      name: r.faculty?.name || r.faculty_name || 'Unknown Faculty',
+      subject: r.faculty?.subject || r.faculty_subject || '',
+      avatar: r.faculty?.avatar || r.faculty_avatar || null,
+    },
+    batch: {
+      name: r.batch_info?.title || r.batch_title || 'Unknown Batch',
+      code: r.batch_info?.code || r.batch_code || '',
+    },
+    publishedDate: r.published || (r.published_at ? r.published_at.split('T')[0] : 'N/A'),
+    viewsCount: r.viewsCount || 0,
+    acknowledgmentsCount: r.acknowledgmentsCount || 0,
+    flagReason: r.flag_reason || '',
+    adminNotes: r.admin_notes || '',
+  }));
+
   // Tab definitions
   const tabs = [
-    { key: 'all', label: 'All Announcements', count: announcements.length },
+    { key: 'all', label: 'All Announcements', count: totalCount },
     {
       key: 'published',
       label: 'Published',
-      count: announcements.filter((a) => a.status === 'Published').length,
+      count: publishedCount,
     },
     {
       key: 'urgent',
       label: 'High Priority / Urgent',
-      count: announcements.filter((a) => a.priority === 'High' || a.priority === 'Urgent').length,
+      count: urgentCount,
     },
     {
       key: 'flagged',
       label: 'Flagged by Admin',
-      count: announcements.filter((a) => a.status === 'Flagged').length,
+      count: flaggedCount,
     },
     {
       key: 'draft',
       label: 'Drafts',
-      count: announcements.filter((a) => a.status === 'Draft').length,
+      count: draftCount,
     },
   ];
 
-  // Filtering
-  const filteredAnnouncements = useMemo(() => {
-    return announcements.filter((item) => {
-      // Tab filter
-      if (activeTab === 'published' && item.status !== 'Published') return false;
-      if (activeTab === 'urgent' && item.priority !== 'High' && item.priority !== 'Urgent') return false;
-      if (activeTab === 'flagged' && item.status !== 'Flagged') return false;
-      if (activeTab === 'draft' && item.status !== 'Draft') return false;
+  // API handles filtering and pagination
+  const filteredAnnouncements = announcements;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const paginatedAnnouncements = filteredAnnouncements;
 
-      // Priority filter
-      if (priorityFilter !== 'ALL' && item.priority !== priorityFilter) return false;
+  const handleOpenReview = async (row) => {
+    // Open optimistically using list data
+    setDetailModal({ isOpen: true, announcement: row });
+    try {
+      const details = await dispatch(fetchTeacherAnnouncementDetails(row.actualId)).unwrap();
+      
+      // Merge full details
+      setDetailModal((prev) => ({
+        isOpen: true,
+        announcement: {
+          ...prev.announcement,
+          id: details.code || details.id,
+          actualId: details.id,
+          title: details.title || 'Untitled',
+          message: details.message || '',
+          priority: details.priority_badge || (details.priority === 'URGENT' ? 'Urgent' : details.priority === 'HIGH' ? 'High' : 'Normal'),
+          status: details.status_display || details.status || 'Draft',
+          teacher: {
+            id: details.faculty?.id || details.faculty || '',
+            name: details.faculty?.name || details.faculty_name || 'Unknown Faculty',
+            subject: details.faculty?.subject || details.faculty_subject || '',
+            avatar: details.faculty?.avatar || details.faculty_avatar || null,
+          },
+          batch: {
+            name: details.batch_info?.title || details.batch_title || 'Unknown Batch',
+            code: details.batch_info?.code || details.batch_code || '',
+          },
+          publishedDate: details.published || (details.published_at ? details.published_at.split('T')[0] : 'N/A'),
+          viewsCount: details.viewsCount || 0,
+          acknowledgmentsCount: details.acknowledgmentsCount || 0,
+          flagReason: details.flag_reason || '',
+          adminNotes: details.admin_notes || '',
+        }
+      }));
+    } catch (err) {
+      toast.error('Failed to load full announcement details', err.toString());
+    }
+  };
 
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = item.title.toLowerCase().includes(q);
-        const matchMsg = item.message.toLowerCase().includes(q);
-        const matchTeacher = item.teacher.name.toLowerCase().includes(q);
-        const matchBatch = item.batch.name.toLowerCase().includes(q) || item.batch.code.toLowerCase().includes(q);
-        if (!matchTitle && !matchMsg && !matchTeacher && !matchBatch) return false;
-      }
-
-      return true;
-    });
-  }, [announcements, activeTab, priorityFilter, searchQuery]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredAnnouncements.length / pageSize) || 1;
-  const paginatedAnnouncements = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredAnnouncements.slice(start, start + pageSize);
-  }, [filteredAnnouncements, currentPage, pageSize]);
-
-  // Actions
-  const handleToggleFlag = (announcement) => {
+  const handleToggleFlag = async (announcement) => {
     const newStatus = announcement.status === 'Flagged' ? 'Published' : 'Flagged';
-    const updated = announcements.map((a) => {
-      if (a.id === announcement.id) {
-        return { ...a, status: newStatus };
-      }
-      return a;
-    });
-
-    setAnnouncements(updated);
+    
+    // In a real app, you'd dispatch an update action here:
+    // await dispatch(updateAnnouncementStatus({ id: announcement.actualId, status: newStatus })).unwrap();
+    // dispatch(fetchTeacherAnnouncements({...}));
 
     if (detailModal.isOpen && detailModal.announcement?.id === announcement.id) {
       setDetailModal({
@@ -133,16 +179,13 @@ export function TeacherAnnouncements() {
     }
   };
 
-  const handleArchive = () => {
+  const handleArchive = async () => {
     if (!archiveModal.announcement) return;
-    const updated = announcements.map((a) => {
-      if (a.id === archiveModal.announcement.id) {
-        return { ...a, status: 'Archived' };
-      }
-      return a;
-    });
-
-    setAnnouncements(updated);
+    
+    // In a real app, you'd dispatch a delete/archive action here
+    // await dispatch(deleteAnnouncement(archiveModal.announcement.actualId)).unwrap();
+    // dispatch(fetchTeacherAnnouncements({...}));
+    
     setArchiveModal({ isOpen: false, announcement: null });
     if (detailModal.isOpen) {
       setDetailModal({ isOpen: false, announcement: null });
@@ -164,7 +207,7 @@ export function TeacherAnnouncements() {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setDetailModal({ isOpen: true, announcement: row })}
+                onClick={() => handleOpenReview(row)}
                 className="text-xs font-semibold text-slate-900 hover:text-[#123B66] hover:underline text-left block truncate cursor-pointer"
                 title={row.title}
               >
@@ -255,7 +298,7 @@ export function TeacherAnnouncements() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setDetailModal({ isOpen: true, announcement: row })}
+            onClick={() => handleOpenReview(row)}
             leftIcon={<FiEye className="w-3.5 h-3.5" />}
             className="h-7 text-xs px-2.5"
           >
@@ -276,7 +319,7 @@ export function TeacherAnnouncements() {
           <div className="flex items-center gap-2">
             <Badge variant="navy" size="md" className="gap-1.5 py-1 px-3">
               <FiSend className="w-3.5 h-3.5 text-[#123B66]" />
-              <span>{announcements.length} Total Cohort Notices</span>
+              <span>{totalCount} Total Cohort Notices</span>
             </Badge>
           </div>
         }
@@ -392,7 +435,7 @@ export function TeacherAnnouncements() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredAnnouncements.length}
+                totalItems={totalCount}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(newSize) => {
@@ -440,7 +483,7 @@ export function TeacherAnnouncements() {
                   <span>Administrative Policy Flag</span>
                 </div>
                 <p className="text-red-700">
-                  This announcement was flagged for containing off-platform contact solicitations or violating classroom communication guidelines.
+                  {detailModal.announcement.flagReason || 'This announcement was flagged for containing off-platform contact solicitations or violating classroom communication guidelines.'}
                 </p>
               </div>
             )}

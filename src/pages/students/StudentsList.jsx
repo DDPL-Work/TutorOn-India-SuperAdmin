@@ -388,8 +388,10 @@ export function StudentsList() {
                           </p>
                           <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
                             <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
-                              {/* {student.id.slice(0, 8)}… */}
-                            <span>{student.education_level || student.grade_target || 'N/A'}</span>
+                              {student.student_code || (student.id ? student.id.split('-')[0].toUpperCase() : '')}
+                            </span>
+                            <span className="font-mono text-[10px]">
+                              {student.education_level || student.grade_target || 'N/A'}
                             </span>
                           </div>
                         </div>

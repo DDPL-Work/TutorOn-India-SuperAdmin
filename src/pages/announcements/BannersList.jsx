@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchAnnouncements, updateAnnouncementStatus, deleteAnnouncement } from '../../API/thunks/announcementsThunks';
+import { fetchAnnouncements, updateAnnouncementStatus, deleteAnnouncement, createAnnouncement, updateAnnouncement } from '../../API/thunks/announcementsThunks';
 import {
   FiPlus,
   FiEye,
@@ -102,19 +102,45 @@ export function BannersList() {
     }
   };
 
-  const handleSaveBanner = () => {
+  const handleSaveBanner = async () => {
     const { banner, isNew } = editModal;
     if (!banner.title.trim()) {
       toast.error('Title Required', 'Please enter a title for the banner.');
       return;
     }
 
-    toast.info('Feature Coming Soon', 'Banner creation via API is pending backend endpoint.');
-    setEditModal({ isOpen: false, isNew: false, banner: null });
+    const payload = {
+      title: banner.title,
+      description: banner.subtitle,
+      banner_image: banner.image,
+      cta_label: banner.ctaText,
+      cta_url: banner.ctaDestination,
+      audience: banner.audience === 'All Users' ? 'ALL' : (banner.audience?.includes('Student') ? 'STUDENTS' : 'TEACHERS'),
+      start_date: banner.startDate,
+      end_date: banner.endDate,
+      slot: banner.displayOrder,
+      is_banner: true,
+      status: banner.status === 'Active' || banner.status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'
+    };
+
+    try {
+      if (isNew) {
+        await dispatch(createAnnouncement(payload)).unwrap();
+        toast.success('Banner Created', 'New promotional banner has been created.');
+      } else {
+        await dispatch(updateAnnouncement({ id: banner.actualId, data: payload })).unwrap();
+        toast.success('Banner Updated', 'Promotional banner has been updated.');
+      }
+      
+      dispatch(fetchAnnouncements({ is_banner: true, page_size: 50 }));
+      setEditModal({ isOpen: false, isNew: false, banner: null });
+    } catch (e) {
+      toast.error('Save Failed', e?.toString() || 'Could not save banner.');
+    }
   };
 
   const handleToggleActive = async (banner) => {
-    const nextStatus = banner.status === 'Active' ? 'DISABLED' : 'PUBLISHED';
+    const nextStatus = banner.status === 'Active' || banner.status === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
     try {
       await dispatch(updateAnnouncementStatus({ id: banner.actualId, status: nextStatus })).unwrap();
       toast.info('Status Updated', `Banner is now ${nextStatus === 'PUBLISHED' ? 'Active' : 'Disabled'}.`);
@@ -283,7 +309,7 @@ export function BannersList() {
               onClick={() => handleOpenEdit()}
               leftIcon={<FiPlus className="w-4 h-4" />}
             >
-              + Create Banner
+              Create Banner
             </Button>
           </div>
         }

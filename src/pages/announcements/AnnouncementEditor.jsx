@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { createAnnouncement } from '../../API/thunks/announcementsThunks';
 import {
   FiArrowLeft,
   FiUploadCloud,
@@ -19,6 +21,7 @@ import { useToast } from '../../hooks/useToast';
 export function AnnouncementEditor() {
   const navigate = useNavigate();
   const toast = useToast();
+  const dispatch = useDispatch();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -40,25 +43,38 @@ export function AnnouncementEditor() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!formData.title.trim()) {
       toast.error('Missing Title', 'Please provide an announcement title before saving draft.');
       return;
     }
-    toast.info('Draft Saved', `Announcement "${formData.title}" saved to local drafts.`);
-    navigate('/announcements-promotions/announcements');
+    
+    try {
+      await dispatch(createAnnouncement({ ...formData, status: 'Draft' })).unwrap();
+      toast.info('Draft Saved', `Announcement "${formData.title}" saved to local drafts.`);
+      navigate('/announcements-promotions/announcements');
+    } catch (e) {
+      toast.error('Action Failed', e.toString());
+    }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!formData.title.trim() || !formData.message.trim()) {
       toast.error('Required Fields Missing', 'Please fill in both the title and message body.');
       return;
     }
-    toast.success(
-      'Announcement Published',
-      `"${formData.title}" is now active and published to ${formData.audience}.`
-    );
-    navigate('/announcements-promotions/announcements');
+    
+    try {
+      const finalStatus = formData.publishImmediately ? 'Published' : formData.status;
+      await dispatch(createAnnouncement({ ...formData, status: finalStatus })).unwrap();
+      toast.success(
+        'Announcement Published',
+        `"${formData.title}" is now active and published to ${formData.audience}.`
+      );
+      navigate('/announcements-promotions/announcements');
+    } catch (e) {
+      toast.error('Action Failed', e.toString());
+    }
   };
 
   return (

@@ -107,18 +107,20 @@ export function TeachersList({ defaultTab = null }) {
     const { type, teacher, notes } = actionModal;
     if (!teacher) return;
 
+    const verificationId = teacher.verification?.id || teacher.verification_id || teacher.id;
+
     try {
       if (type === 'approve') {
-        await dispatch(approveTeacher({ id: teacher.id, admin_notes: notes })).unwrap();
+        await dispatch(approveTeacher({ id: verificationId, admin_notes: notes })).unwrap();
         toast.success(
           'Teacher Verified',
-          `${teacher.display_name || teacher.name} has been certified and can now publish batches across TutorOn India.`
+          `${teacher.display_name || teacher.full_name} has been certified and can now publish batches across TutorOn India.`
         );
       } else {
-        await dispatch(rejectTeacher({ id: teacher.id, rejection_reason: notes, admin_note: notes })).unwrap();
+        await dispatch(rejectTeacher({ id: verificationId, rejection_reason: notes, admin_note: notes })).unwrap();
         toast.error(
           'Verification Declined',
-          `${teacher.display_name || teacher.name} flagged as Rejected. Feedback sent for document resubmission.`
+          `${teacher.display_name || teacher.full_name} flagged as Rejected. Feedback sent for document resubmission.`
         );
       }
       // Refresh the list after action
@@ -131,6 +133,49 @@ export function TeachersList({ defaultTab = null }) {
     } finally {
       setActionModal({ isOpen: false, type: 'approve', teacher: null, notes: '' });
     }
+  };
+
+  const handleExportCSV = () => {
+    if (!paginatedTeachers || paginatedTeachers.length === 0) {
+      toast.error('No Data', 'There are no teachers to export matching the current criteria.');
+      return;
+    }
+
+    const passRate = totalCount > 0 ? ((verifiedCount / totalCount) * 100).toFixed(1) + '%' : '0%';
+
+    const metaRows = [
+      ['Report: Teacher Verification Statistics'],
+      ['Total Teachers', totalCount],
+      ['Verified Faculty', verifiedCount],
+      ['Pending Verification', pendingCount],
+      ['Verification Pass Rate', passRate],
+      [], // Empty row for spacing
+    ];
+
+    const headers = ['Teacher ID', 'Full Name', 'Email', 'Verification Status', 'Average Rating', 'Experience (Years)', 'Subjects', 'Languages', 'Applied Date'];
+    const dataRows = paginatedTeachers.map((t) => [
+      t.teacher_code || (t.id ? t.id.split('-')[0].toUpperCase() : ''),
+      `"${t.full_name || t.name || ''}"`,
+      t.email || '',
+      t.verification_status || 'PENDING_VERIFICATION',
+      t.average_rating || 0,
+      t.experience_years || 0,
+      `"${(t.subjects || []).map(s => typeof s === 'string' ? s : s.name).join(' | ')}"`,
+      `"${(t.teaching_languages || []).join(' | ')}"`,
+      t.created_at ? t.created_at.split('T')[0] : 'N/A'
+    ]);
+
+    const allRows = [...metaRows, headers, ...dataRows];
+    const csvContent = 'data:text/csv;charset=utf-8,' + allRows.map((r) => r.join(',')).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `tutoron_teachers_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success('Teachers Exported', `Exported stats and ${paginatedTeachers.length} teacher records as CSV.`);
   };
 
   return (
@@ -149,7 +194,7 @@ export function TeachersList({ defaultTab = null }) {
             variant="secondary"
             size="sm"
             leftIcon={<FiDownload className="w-3.5 h-3.5" />}
-            onClick={() => toast.success('Export Initiated', 'Exporting teacher verification dossiers as CSV.')}
+            onClick={handleExportCSV}
           >
             Export Teachers
           </Button>
@@ -330,16 +375,16 @@ export function TeachersList({ defaultTab = null }) {
                     {/* Teacher Info with Circular Avatar */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <Avatar name={teacher.name} size="sm" />
+                        <Avatar name={teacher.full_name} size="sm" src={teacher.profile_photo} />
                         <div>
                           <p className="font-semibold text-slate-900 group-hover:text-[#123B66] transition-colors leading-tight">
-                            {teacher.display_name || teacher.name}
+                            {teacher.display_name || teacher.full_name}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                            {/* <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-                              {teacher.id}
-                            </span> */}
-                            <span>{teacher.city}</span>
+                            <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                              {teacher.teacher_code || (teacher.id ? teacher.id.split('-')[0].toUpperCase() : '')}
+                            </span>
+                            <span>{teacher.email}</span>
                           </div>
                         </div>
                       </div>
@@ -352,17 +397,17 @@ export function TeachersList({ defaultTab = null }) {
                           {teacher.headline || teacher.qualification}
                         </p>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {teacher.subjects.slice(0, 2).map((sub, i) => (
+                          {(teacher.subjects || []).slice(0, 2).map((sub, i) => (
                             <span
                               key={i}
                               className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 text-[#123B66] border border-blue-100 whitespace-nowrap"
                             >
-                              {sub}
+                              {typeof sub === 'string' ? sub : (sub.name || 'Unknown')}
                             </span>
                           ))}
-                          {teacher.subjects.length > 2 && (
+                          {(teacher.subjects || []).length > 2 && (
                             <span className="px-1 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
-                              +{teacher.subjects.length - 2}
+                              +{(teacher.subjects || []).length - 2}
                             </span>
                           )}
                         </div>
@@ -373,10 +418,10 @@ export function TeachersList({ defaultTab = null }) {
                     <td className="py-3.5 px-4 text-slate-700">
                       <div className="min-w-[180px] max-w-[240px]">
                         <p className="font-medium text-slate-800 text-[11px]" title={teacher.experience || `${teacher.experience_years} Years`}>
-                          {teacher.experience || (teacher.experience_years ? `${teacher.experience_years} Years` : 'N/A')}
+                          {teacher.experience || (teacher.experience_years ? `${teacher.experience_years} Years` : '0 Years')}
                         </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5" title={(teacher.languages || []).join(', ')}>
-                          {(teacher.languages || []).join(', ')}
+                        <p className="text-[10px] text-slate-500 mt-0.5" title={(teacher.teaching_languages || []).join(', ')}>
+                          {(teacher.teaching_languages || []).length > 0 ? teacher.teaching_languages.join(', ') : 'No languages listed'}
                         </p>
                       </div>
                     </td>
@@ -385,7 +430,7 @@ export function TeachersList({ defaultTab = null }) {
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <div className="inline-flex items-center gap-1 font-bold text-slate-900 font-mono text-[11px]">
                         <FiStar className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                        <span>{parseFloat(teacher.rating || 0).toFixed(2)}</span>
+                        <span>{parseFloat(teacher.average_rating || 0).toFixed(2)}</span>
                       </div>
                       <span className="block text-[10px] text-slate-500 font-mono mt-0.5">
                         {(teacher.total_students || teacher.studentsTaught || 0).toLocaleString('en-IN')} learners
@@ -478,10 +523,10 @@ export function TeachersList({ defaultTab = null }) {
           onClose={() => setActionModal({ isOpen: false, type: 'approve', teacher: null, notes: '' })}
           title={
             actionModal.type === 'approve'
-              ? `Approve & Certify Faculty — ${actionModal.teacher.name}`
-              : `Decline Verification — ${actionModal.teacher.name}`
+              ? `Approve & Certify Faculty — ${actionModal.teacher.full_name}`
+              : `Decline Verification — ${actionModal.teacher.full_name}`
           }
-          description={`Teacher Reference ID: ${actionModal.teacher.id} · Applied ${actionModal.teacher.joinedDate}`}
+          description={`Teacher Reference ID: ${actionModal.teacher.id} · Applied ${actionModal.teacher.created_at ? actionModal.teacher.created_at.split('T')[0] : 'N/A'}`}
           size="md"
           footer={
             <>
@@ -507,7 +552,7 @@ export function TeachersList({ defaultTab = null }) {
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-900 text-sm">
-                  {actionModal.teacher.display_name || actionModal.teacher.name}
+                  {actionModal.teacher.display_name || actionModal.teacher.full_name}
                 </span>
                 <span className="font-mono text-slate-500">{actionModal.teacher.id}</span>
               </div>

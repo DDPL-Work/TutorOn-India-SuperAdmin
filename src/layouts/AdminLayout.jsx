@@ -50,14 +50,14 @@ export function AdminLayout() {
 
         {/* Global Admin Footer */}
         <footer className="py-4 px-6 border-t border-slate-200/80 text-center text-xs text-slate-500 bg-white/50">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row items-end justify-end gap-2 max-w-7xl mx-auto">
             <span>
               &copy; {new Date().getFullYear()} TutorOn India. Super Admin Operational Control.
             </span>
-            <div className="flex items-center gap-4 text-[11px] font-mono text-slate-400">
+            {/* <div className="flex items-center gap-4 text-[11px] font-mono text-slate-400">
               <span>Environment: Staging-Secured</span>
               <span>Encrypted Session</span>
-            </div>
+            </div> */}
           </div>
         </footer>
       </div>

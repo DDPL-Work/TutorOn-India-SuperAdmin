@@ -49,10 +49,26 @@ export const resolveReport = createAsyncThunk(
         method: 'POST',
         body: JSON.stringify({ resolution_action, admin_notes }),
       });
-      if (response.success) return response.data;
-      return rejectWithValue(response.message || 'Failed to resolve report');
+      
+      if (response && response.success === false) {
+        return rejectWithValue(response.message || 'Failed to resolve report');
+      }
+
+      const resData = response?.data || response || {};
+      return {
+        id,
+        report_id: resData.report_id || resData.id || id,
+        status: resData.status || 'RESOLVED',
+        resolved_by: resData.resolved_by || 'Super Admin',
+        resolution_action: resData.resolution_action || resolution_action,
+        admin_notes: admin_notes || resData.admin_notes || resData.admin_note,
+        admin_note: admin_notes || resData.admin_notes || resData.admin_note,
+        resolved_at: resData.resolved_at || new Date().toISOString(),
+        ...resData,
+        message: response?.message || 'Report resolved successfully.',
+      };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to resolve report');
     }
   }
 );

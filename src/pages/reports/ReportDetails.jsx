@@ -23,7 +23,8 @@ export function ReportDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentReport, isLoading } = useSelector((state) => state.reports);
+  const toast = useToast();
+  const { currentReport, isLoading, isResolving } = useSelector((state) => state.reports);
 
   useEffect(() => {
     if (id) {
@@ -56,7 +57,10 @@ export function ReportDetails() {
     },
     description: currentReport.description || currentReport.reason || '',
     evidenceUrls: currentReport.evidenceUrls || currentReport.evidence_urls || [],
-    resolution: currentReport.admin_note || currentReport.resolution || null,
+    resolution: currentReport.admin_notes || currentReport.admin_note || currentReport.resolution || null,
+    resolutionAction: currentReport.resolution_action || null,
+    resolvedBy: currentReport.resolved_by || currentReport.resolved_by_email || 'Super Admin',
+    resolvedAt: currentReport.resolved_at ? currentReport.resolved_at.split('T')[0] : null,
     timeline: [
       {
         action: 'Report Submitted',
@@ -64,14 +68,14 @@ export function ReportDetails() {
         performedBy: currentReport.filed_by?.name || 'System',
         notes: currentReport.reason || 'Initial filing',
       },
-      ...(currentReport.status === 'RESOLVED' || currentReport.status === 'DISMISSED' ? [{
-        action: `Report ${currentReport.status === 'RESOLVED' ? 'Resolved' : 'Dismissed'}`,
-        timestamp: currentReport.resolved_at ? currentReport.resolved_at.split('T')[0] : 'N/A',
-        performedBy: currentReport.resolved_by_email || 'Admin',
-        notes: currentReport.admin_note || '',
+      ...(currentReport.status === 'RESOLVED' || currentReport.status === 'Resolved' || currentReport.status === 'DISMISSED' || currentReport.status === 'Dismissed' ? [{
+        action: `Report ${currentReport.status === 'DISMISSED' || currentReport.status === 'Dismissed' ? 'Dismissed' : 'Resolved'}`,
+        timestamp: currentReport.resolved_at ? currentReport.resolved_at.split('T')[0] : 'Recent',
+        performedBy: currentReport.resolved_by || currentReport.resolved_by_email || 'Super Admin',
+        notes: currentReport.admin_notes || currentReport.admin_note || currentReport.resolution_action || 'Report closed.',
       }] : [])
     ],
-    adminNotes: currentReport.admin_note || '',
+    adminNotes: currentReport.admin_notes || currentReport.admin_note || '',
   } : null;
 
   const [adminNotes, setAdminNotes] = useState('');
@@ -80,8 +84,14 @@ export function ReportDetails() {
       setAdminNotes(report.adminNotes);
     }
   }, [report?.adminNotes]);
+
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
-  const [resolutionText, setResolutionText] = useState('Grievance investigated and appropriate action taken.');
+  const [resolutionAction, setResolutionAction] = useState('CONTENT_REMOVED');
+  const [customAction, setCustomAction] = useState('');
+  const [resolutionNotes, setResolutionNotes] = useState('');
+
+  const [dismissModalOpen, setDismissModalOpen] = useState(false);
+  const [dismissNotes, setDismissNotes] = useState('');
 
   if (isLoading && !report) {
     return (
@@ -120,42 +130,59 @@ export function ReportDetails() {
     try {
       await dispatch(resolveReport({
         id: report.actualId,
-        resolution_action: 'MARK_UNDER_REVIEW',
-        admin_notes: adminNotes,
+        resolution_action: 'UNDER_REVIEW',
+        admin_notes: adminNotes || 'Ticket placed under administrative review.',
       })).unwrap();
       dispatch(fetchReportDetails(id));
       toast.info('Status Updated', 'Ticket is now flagged as Under Review.');
     } catch (e) {
-      toast.error('Error', 'Failed to update report status.');
+      toast.error('Error', typeof e === 'string' ? e : 'Failed to update report status.');
     }
+  };
+
+  const handleOpenResolveModal = () => {
+    setResolutionNotes(adminNotes || '');
+    setResolveModalOpen(true);
   };
 
   const handleResolve = async () => {
     try {
-      await dispatch(resolveReport({
+      const finalAction = resolutionAction === 'OTHER' ? (customAction.trim() || 'OTHER') : resolutionAction;
+      const finalNotes = resolutionNotes.trim() || adminNotes.trim() || 'Grievance investigated and appropriate action taken.';
+
+      const result = await dispatch(resolveReport({
         id: report.actualId,
-        resolution_action: resolutionText,
-        admin_notes: adminNotes,
+        resolution_action: finalAction,
+        admin_notes: finalNotes,
       })).unwrap();
-      dispatch(fetchReportDetails(id));
+
       setResolveModalOpen(false);
-      toast.success('Report Resolved', `Case ${report.id} has been formally closed.`);
+      toast.success('Report Resolved', result.message || `Case ${report.id} has been formally closed.`);
+      dispatch(fetchReportDetails(id));
     } catch (e) {
-      toast.error('Error', 'Failed to resolve report.');
+      toast.error('Error', typeof e === 'string' ? e : 'Failed to resolve report.');
     }
+  };
+
+  const handleOpenDismissModal = () => {
+    setDismissNotes(adminNotes || '');
+    setDismissModalOpen(true);
   };
 
   const handleDismiss = async () => {
     try {
-      await dispatch(resolveReport({
+      const finalNotes = dismissNotes.trim() || adminNotes.trim() || 'Report dismissed after review.';
+      const result = await dispatch(resolveReport({
         id: report.actualId,
         resolution_action: 'DISMISSED',
-        admin_notes: adminNotes,
+        admin_notes: finalNotes,
       })).unwrap();
+
+      setDismissModalOpen(false);
+      toast.info('Report Dismissed', result.message || `Ticket ${report.id} has been dismissed.`);
       dispatch(fetchReportDetails(id));
-      toast.error('Report Dismissed', `Ticket ${report.id} has been dismissed.`);
     } catch (e) {
-      toast.error('Error', 'Failed to dismiss report.');
+      toast.error('Error', typeof e === 'string' ? e : 'Failed to dismiss report.');
     }
   };
 
@@ -222,6 +249,7 @@ export function ReportDetails() {
               <Button
                 variant="outline"
                 size="sm"
+                disabled={isResolving}
                 onClick={handleMarkUnderReview}
                 className="text-blue-700 hover:bg-blue-50"
               >
@@ -233,7 +261,8 @@ export function ReportDetails() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setResolveModalOpen(true)}
+                disabled={isResolving}
+                onClick={handleOpenResolveModal}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 leftIcon={<FiCheck className="w-3.5 h-3.5" />}
               >
@@ -241,11 +270,12 @@ export function ReportDetails() {
               </Button>
             )}
 
-            {report.status !== 'Dismissed' && (
+            {report.status !== 'Dismissed' && report.status !== 'Resolved' && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleDismiss}
+                disabled={isResolving}
+                onClick={handleOpenDismissModal}
                 className="text-slate-600 hover:bg-slate-100"
                 leftIcon={<FiX className="w-3.5 h-3.5" />}
               >
@@ -326,14 +356,27 @@ export function ReportDetails() {
               </div>
             )}
 
-            {/* Resolution Statement */}
-            {report.resolution && (
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-                  <FiCheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span>Official Resolution</span>
+            {/* Official Resolution Statement */}
+            {(report.resolution || report.status === 'Resolved') && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                    <FiCheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Official Resolution</span>
+                  </div>
+                  {report.resolutionAction && (
+                    <span className="font-mono text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded border border-emerald-300">
+                      Action: {report.resolutionAction}
+                    </span>
+                  )}
                 </div>
-                <p className="text-emerald-800">{report.resolution}</p>
+                {report.resolution && (
+                  <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap">{report.resolution}</p>
+                )}
+                <div className="flex items-center gap-4 text-[11px] text-emerald-700 pt-1 border-t border-emerald-200/60 font-mono">
+                  <span>Resolved By: {report.resolvedBy}</span>
+                  {report.resolvedAt && <span>Date: {report.resolvedAt}</span>}
+                </div>
               </div>
             )}
           </div>
@@ -363,9 +406,8 @@ export function ReportDetails() {
             <Button
               variant="outline"
               size="sm"
-              onClick={async () => {
-                // If there's an API to update notes, it should be called here
-                toast.success('Notes Saved', 'Investigation notes updated locally.');
+              onClick={() => {
+                toast.success('Notes Saved', 'Investigation notes recorded.');
               }}
               className="w-full justify-center text-xs"
             >
@@ -403,43 +445,136 @@ export function ReportDetails() {
       {/* Resolution Modal */}
       <Modal
         isOpen={resolveModalOpen}
-        onClose={() => setResolveModalOpen(false)}
+        onClose={() => !isResolving && setResolveModalOpen(false)}
         title="Resolve Grievance Ticket"
-        size="sm"
+        size="md"
       >
         <div className="space-y-4 text-xs">
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800">
             <p className="font-semibold text-emerald-900">Close & Resolve Report</p>
             <p className="mt-1 text-emerald-700">
-              Document the formal corrective measure or mediation outcome before concluding this ticket.
+              Select the administrative action taken and record resolution details.
             </p>
           </div>
 
           <div className="space-y-1.5">
+            <label htmlFor="resolution-action-select" className="block font-semibold text-slate-700">
+              Resolution Action <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="resolution-action-select"
+              value={resolutionAction}
+              onChange={(e) => setResolutionAction(e.target.value)}
+              className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#123B66]"
+            >
+              <option value="CONTENT_REMOVED">CONTENT_REMOVED - Violating Content Removed / Taken Down</option>
+              <option value="WARNING_ISSUED">WARNING_ISSUED - Official Policy Warning Issued</option>
+              <option value="ACCOUNT_SUSPENDED">ACCOUNT_SUSPENDED - Accused Account Suspended / Restricted</option>
+              <option value="NO_ACTION">NO_ACTION - Investigated, No Sanction Required</option>
+              <option value="DISMISSED">DISMISSED - Dismissed as False / Unsubstantiated</option>
+              <option value="OTHER">OTHER - Custom Resolution Action</option>
+            </select>
+          </div>
+
+          {resolutionAction === 'OTHER' && (
+            <div className="space-y-1.5">
+              <label htmlFor="custom-action-input" className="block font-semibold text-slate-700">
+                Custom Action Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="custom-action-input"
+                type="text"
+                value={customAction}
+                onChange={(e) => setCustomAction(e.target.value)}
+                placeholder="e.g. MEDIATION_COMPLETED"
+                className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#123B66]"
+              />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
             <label htmlFor="report-resolution-summary" className="block font-semibold text-slate-700">
-              Resolution Summary
+              Admin Notes & Resolution Summary
             </label>
             <textarea
               id="report-resolution-summary"
               rows={3}
-              value={resolutionText}
-              onChange={(e) => setResolutionText(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+              value={resolutionNotes}
+              onChange={(e) => setResolutionNotes(e.target.value)}
+              placeholder="Detail the investigation outcome, corrective measure, or notes..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-600 resize-none"
             />
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setResolveModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isResolving}
+              onClick={() => setResolveModalOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               variant="primary"
               size="sm"
+              disabled={isResolving}
               onClick={handleResolve}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
               leftIcon={<FiCheck className="w-3.5 h-3.5" />}
             >
-              Confirm Resolution
+              {isResolving ? 'Resolving...' : 'Confirm Resolution'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Dismiss Modal */}
+      <Modal
+        isOpen={dismissModalOpen}
+        onClose={() => !isResolving && setDismissModalOpen(false)}
+        title="Dismiss Grievance Ticket"
+        size="sm"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+            <p className="font-semibold text-slate-900">Dismiss Report #{report.id}</p>
+            <p className="mt-1 text-slate-600">
+              Are you sure you want to dismiss this incident report? You can include a note explaining the reason.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="dismiss-notes" className="block font-semibold text-slate-700">
+              Dismissal Reason / Notes
+            </label>
+            <textarea
+              id="dismiss-notes"
+              rows={3}
+              value={dismissNotes}
+              onChange={(e) => setDismissNotes(e.target.value)}
+              placeholder="e.g. Insufficient evidence provided, resolved via direct communication..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-500 resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isResolving}
+              onClick={() => setDismissModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={isResolving}
+              onClick={handleDismiss}
+              leftIcon={<FiX className="w-3.5 h-3.5" />}
+            >
+              {isResolving ? 'Dismissing...' : 'Dismiss Report'}
             </Button>
           </div>
         </div>

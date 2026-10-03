@@ -26,16 +26,31 @@ export const fetchReviews = createAsyncThunk(
 
 export const updateReviewStatus = createAsyncThunk(
   'reviews/updateStatus',
-  async ({ id, status, notes }, { rejectWithValue }) => {
+  async ({ id, status, notes, reason }, { rejectWithValue }) => {
     try {
+      const payload = { status };
+      const noteText = notes || reason;
+      if (noteText) {
+        payload.notes = noteText;
+        payload.moderation_notes = noteText;
+        payload.reason = noteText;
+      }
+
       const response = await fetchApi(`/admin/reviews/${id}/`, {
         method: 'PATCH',
-        body: JSON.stringify({ status, notes }),
+        body: JSON.stringify(payload),
       });
-      if (response.success) return response.data;
-      return rejectWithValue(response.message || 'Failed to update review status');
+
+      if (response && response.success !== undefined) {
+        if (response.success) {
+          return { id, status, ...(response.data || response) };
+        }
+        return rejectWithValue(response.message || 'Failed to update review status');
+      }
+
+      return { id, status, ...(response || {}) };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to update review status');
     }
   }
 );

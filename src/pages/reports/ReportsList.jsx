@@ -113,17 +113,32 @@ export function ReportsList() {
   const paginatedReports = filteredReports;
 
   // Quick Resolve Action
+  const [resolvingId, setResolvingId] = useState(null);
+
   const handleQuickResolve = async (item, e) => {
     e.stopPropagation();
+    setResolvingId(item.actualId);
     try {
-      await dispatch(resolveReport({
+      const res = await dispatch(resolveReport({
         id: item.actualId,
-        resolution_action: 'QUICK_RESOLVED',
-        admin_notes: 'Quick resolved by Super Admin.',
+        resolution_action: 'CONTENT_REMOVED',
+        admin_notes: 'Quick resolved and addressed by Super Admin.',
       })).unwrap();
-      toast.success('Report Resolved', `Grievance ticket ${item.code} marked as resolved.`);
+      toast.success('Report Resolved', res?.message || `Grievance ticket ${item.code} marked as resolved.`);
+      if (activeTab === 'open') {
+        dispatch(fetchReports({
+          page: currentPage,
+          page_size: pageSize,
+          search: searchQuery,
+          category: categoryFilter === 'ALL' ? undefined : categoryFilter,
+          priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
+          status: 'OPEN',
+        }));
+      }
     } catch (e) {
-      toast.error('Error', 'Failed to resolve report.');
+      toast.error('Error', typeof e === 'string' ? e : 'Failed to resolve report.');
+    } finally {
+      setResolvingId(null);
     }
   };
 
@@ -217,10 +232,11 @@ export function ReportsList() {
           {row.status === 'Open' && (
             <button
               type="button"
+              disabled={resolvingId === row.actualId}
               onClick={(e) => handleQuickResolve(row, e)}
-              className="text-[11px] font-medium px-2 py-1 rounded-md text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+              className="text-[11px] font-medium px-2 py-1 rounded-md text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50"
             >
-              Resolve
+              {resolvingId === row.actualId ? 'Resolving...' : 'Resolve'}
             </button>
           )}
 

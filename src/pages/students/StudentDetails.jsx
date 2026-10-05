@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { fetchStudentById } from '../../API/thunks/studentsThunks';
+import { fetchStudentById, deactivateStudent, activateStudent } from '../../API/thunks/studentsThunks';
 import {
   FiArrowLeft,
   FiMail,
@@ -48,6 +48,8 @@ export function StudentDetails() {
   const [noticeMessage, setNoticeMessage] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [notesList, setNotesList] = useState([]);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isStatusConfirmModalOpen, setIsStatusConfirmModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -105,13 +107,80 @@ export function StudentDetails() {
     student.email ||
     'Student';
 
-  const isStatusActive = student.status?.toLowerCase() === 'active';
+  const isStatusActive =
+    student.is_active !== undefined
+      ? Boolean(student.is_active)
+      : student.status?.toLowerCase() === 'active';
 
-  // Toggle Status Handler
-  const handleToggleStatus = () => {
-    const nextStatus = isStatusActive ? 'Inactive' : 'Active';
-    setStudent((prev) => ({ ...prev, status: nextStatus }));
-    toast.success('Status Updated', `Student ${studentName} is now marked as ${nextStatus}.`);
+  // Toggle Status Modal Opener
+  const handleOpenStatusModal = () => {
+    setIsStatusConfirmModalOpen(true);
+  };
+
+  // Confirm Status Toggle (Dispatches Thunk + Handles Promise)
+  const handleConfirmStatusToggle = async () => {
+    const studentId = student.id || id;
+    if (!studentId) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      if (isStatusActive) {
+        const res = await dispatch(deactivateStudent(studentId)).unwrap();
+        const updatedData = res?.data || res;
+        setStudent((prev) => ({
+          ...prev,
+          ...updatedData,
+          is_active: false,
+          status: 'Inactive',
+          account_security: {
+            ...(prev?.account_security || {}),
+            ...(updatedData?.account_security || {}),
+            account_standing: 'Suspended',
+          },
+        }));
+        toast.success(
+          'Student Deactivated',
+          `Student account ${studentName} has been deactivated successfully.`
+        );
+      } else {
+        const res = await dispatch(activateStudent(studentId)).unwrap();
+        const updatedData = res?.data || res;
+        setStudent((prev) => ({
+          ...prev,
+          ...updatedData,
+          is_active: true,
+          status: updatedData?.status || 'Active',
+          account_security: {
+            ...(prev?.account_security || {}),
+            ...(updatedData?.account_security || {}),
+            account_standing: 'Good Standing',
+          },
+        }));
+        toast.success(
+          'Student Activated',
+          `Student account ${studentName} has been reactivated successfully.`
+        );
+      }
+      setIsStatusConfirmModalOpen(false);
+
+      // Re-fetch in background to ensure all related data is in sync
+      dispatch(fetchStudentById(studentId))
+        .unwrap()
+        .then((fresh) => {
+          const freshData = fresh?.data || fresh;
+          if (freshData) {
+            setStudent(freshData);
+          }
+        })
+        .catch(() => {});
+    } catch (err) {
+      toast.error(
+        `${isStatusActive ? 'Deactivation' : 'Activation'} Failed`,
+        err?.toString() || 'Could not update student status.'
+      );
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   // Open Edit Modal with current data
@@ -294,7 +363,8 @@ export function StudentDetails() {
             <Button
               variant={isStatusActive ? 'danger' : 'success'}
               size="sm"
-              onClick={handleToggleStatus}
+              isLoading={isUpdatingStatus}
+              onClick={handleOpenStatusModal}
             >
               {isStatusActive ? 'Deactivate' : 'Activate'}
             </Button>
@@ -487,8 +557,8 @@ export function StudentDetails() {
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-slate-50">
                 <span className="text-slate-500">Account Standing</span>
-                <Badge variant="success" size="sm">
-                  {student.account_security?.account_standing || 'Good Standing'}
+                <Badge variant={isStatusActive ? 'success' : 'danger'} size="sm">
+                  {student.account_security?.account_standing || (isStatusActive ? 'Good Standing' : 'Suspended')}
                 </Badge>
               </div>
 
@@ -707,13 +777,17 @@ export function StudentDetails() {
             </div>
           </div>
 
+
+
           {/* Internal Admin Remarks & Notes */}
+{/* 
           <div className="bg-white border border-slate-200 rounded-xl shadow-subtle p-5 space-y-4">
+
             <h2 className="text-sm font-bold text-slate-900 font-geist pb-2 border-b border-slate-100">
               Super Admin Internal Remarks
             </h2>
 
-            {/* Add note input */}
+            
             <form onSubmit={handleAddNote} className="space-y-2">
               <textarea
                 rows={2}
@@ -729,7 +803,8 @@ export function StudentDetails() {
               </div>
             </form>
 
-            {/* Notes history */}
+
+          
             <div className="space-y-3 pt-2">
               {notesList.length > 0 ? (
                 notesList.map((n) => (
@@ -747,7 +822,9 @@ export function StudentDetails() {
                 </div>
               )}
             </div>
-          </div>
+
+          </div> */}
+
         </div>
       )}
 
@@ -957,6 +1034,56 @@ export function StudentDetails() {
             />
           </div>
         </form>
+      </Modal>
+
+      {/* Deactivate / Activate Confirmation Modal */}
+      <Modal
+        isOpen={isStatusConfirmModalOpen}
+        onClose={() => !isUpdatingStatus && setIsStatusConfirmModalOpen(false)}
+        title={isStatusActive ? `Deactivate Student Account` : `Activate Student Account`}
+        description={
+          isStatusActive
+            ? `Are you sure you want to deactivate ${studentName}'s account? The student will be restricted from portal login and enrolled batches.`
+            : `Are you sure you want to reactivate ${studentName}'s account? Full batch access and portal privileges will be restored.`
+        }
+        size="md"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isUpdatingStatus}
+              onClick={() => setIsStatusConfirmModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={isStatusActive ? 'danger' : 'success'}
+              size="sm"
+              isLoading={isUpdatingStatus}
+              onClick={handleConfirmStatusToggle}
+            >
+              {isStatusActive ? 'Confirm Deactivation' : 'Confirm Activation'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 py-1">
+          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <Avatar name={studentName} src={student.profile_photo} size="md" />
+            <div>
+              <p className="text-sm font-semibold text-slate-800">{studentName}</p>
+              <p className="text-xs text-slate-500 font-mono">
+                {student.email || student.phone_number || student.student_code || student.id}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            {isStatusActive
+              ? 'Deactivating this account will update status to "Inactive", suspend platform privileges, and log this change in the administrative records.'
+              : 'Reactivating this account will restore standard standing to "Active" and re-enable student login.'}
+          </p>
+        </div>
       </Modal>
     </div>
   );

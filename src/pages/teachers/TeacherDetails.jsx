@@ -864,14 +864,14 @@ export function TeacherDetails() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <Button variant="danger" size="sm" onClick={openRejectModal}>
                   Decline
                 </Button>
                 <Button variant="success" size="sm" onClick={openApproveModal}>
                   Approve Faculty
                 </Button>
-              </div>
+              </div> */}
             </div>
           )}
         </div>

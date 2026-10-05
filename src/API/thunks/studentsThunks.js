@@ -39,6 +39,46 @@ export const fetchStudentById = createAsyncThunk(
   }
 );
 
+export const deactivateStudent = createAsyncThunk(
+  'students/deactivate',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await fetchApi(`/admin/students/${id}/deactivate/`, {
+        method: 'POST',
+      });
+      // console.log("deactivateStudent response:", response); // Debugging log
+      if (response.success !== undefined) {
+        if (response.success) return response.data || response;
+        return rejectWithValue(response.message || 'Failed to deactivate student');
+      }
+      return response.data || response;
+    } catch (error) {
+      // console.error("Error deactivating student:", error); // Debugging log
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const activateStudent = createAsyncThunk(
+  'students/activate',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await fetchApi(`/admin/students/${id}/activate/`, {
+        method: 'POST',
+      });
+      // console.log("activateStudent response:", response); // Debugging log
+      if (response.success !== undefined) {
+        if (response.success) return response.data || response;
+        return rejectWithValue(response.message || 'Failed to activate student');
+      }
+      return response.data || response;
+    } catch (error) {
+      // console.error("Error activating student:", error); // Debugging log
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const deleteStudent = createAsyncThunk(
   'students/delete',
   async (id, { rejectWithValue }) => {

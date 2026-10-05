@@ -9,6 +9,7 @@ import {
   FiEye,
   FiRotateCcw,
 } from 'react-icons/fi';
+import { TbRefreshOff } from "react-icons/tb";
 import PageHeader from '../../components/ui/PageHeader';
 import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
@@ -350,7 +351,7 @@ export function ReviewsList() {
                 title="Remove Review"
                 aria-label="Remove Review"
               >
-                <FiTrash2 className="w-3.5 h-3.5" />
+                <TbRefreshOff className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -445,7 +446,7 @@ export function ReviewsList() {
         }}
         actions={
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+            {/* <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
               <span>Rows:</span>
               <select
                 value={pageSize}
@@ -459,7 +460,7 @@ export function ReviewsList() {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
-            </div>
+            </div> */}
             <TableScrollButtons targetRef={tableRef} />
           </div>
         }

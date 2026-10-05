@@ -1,5 +1,10 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { fetchStudents, deleteStudent } from '../thunks/studentsThunks';
+import {
+  fetchStudents,
+  deactivateStudent,
+  activateStudent,
+  deleteStudent,
+} from '../thunks/studentsThunks';
 
 const initialState = {
   data: [],
@@ -40,6 +45,36 @@ const studentsSlice = createSlice({
       .addCase(fetchStudents.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+      .addCase(deactivateStudent.fulfilled, (state, action) => {
+        const studentData = action.payload;
+        const studentId = studentData?.id;
+        if (studentId) {
+          const index = state.data.findIndex((s) => s.id === studentId);
+          if (index !== -1) {
+            state.data[index] = {
+              ...state.data[index],
+              ...studentData,
+              is_active: false,
+              status: 'Inactive',
+            };
+          }
+        }
+      })
+      .addCase(activateStudent.fulfilled, (state, action) => {
+        const studentData = action.payload;
+        const studentId = studentData?.id;
+        if (studentId) {
+          const index = state.data.findIndex((s) => s.id === studentId);
+          if (index !== -1) {
+            state.data[index] = {
+              ...state.data[index],
+              ...studentData,
+              is_active: true,
+              status: studentData.status || 'Active',
+            };
+          }
+        }
       })
       .addCase(deleteStudent.fulfilled, (state, action) => {
         state.data = state.data.filter((s) => s.id !== action.payload);

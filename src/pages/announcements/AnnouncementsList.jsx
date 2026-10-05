@@ -350,7 +350,7 @@ export function AnnouncementsList() {
         }}
         actions={
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+            {/* <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
               <span>Rows:</span>
               <select
                 value={pageSize}
@@ -364,7 +364,7 @@ export function AnnouncementsList() {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
-            </div>
+            </div> */}
             <TableScrollButtons targetRef={tableRef} />
           </div>
         }
@@ -398,7 +398,7 @@ export function AnnouncementsList() {
           </select>
         </div>
 
-        <div className="w-32 sm:w-36 shrink-0">
+        {/* <div className="w-32 sm:w-36 shrink-0">
           <select
             value={typeFilter}
             onChange={(e) => {
@@ -412,7 +412,7 @@ export function AnnouncementsList() {
             <option value="Important Announcement">Important</option>
             <option value="Promotional Announcement">Promotional</option>
           </select>
-        </div>
+        </div> */}
       </FilterBar>
 
       {/* Announcements Table */}

@@ -1,560 +1,25 @@
-# TUTORON INDIA — Production Backend (Django 5 + Django REST Framework)
+# TUTORON INDIA — Complete Backend & API Documentation
 
-**TutorOn India** is an EdTech student-teacher marketplace and online coaching platform backend designed for India. It connects students with verified teachers while strictly protecting user privacy through admin-controlled contact unlocking.
-
----
-
-## 🌟 Core Business Rules & Architectural Highlights
-
-1. **NO Live Class Hosting**:
-   - The platform does not host live video conferencing internally (No WebRTC/Zoom native SDK).
-   - Supported class formats:
-     - `RECORDED_VIDEO`: Validated video file uploads (size, extension, MIME).
-     - `YOUTUBE`: External YouTube URL (domain and HTTPS whitelisted).
-     - `ZOOM`: External Zoom meeting URL (domain and HTTPS whitelisted).
-     - `GOOGLE_MEET`: External Google Meet URL (domain and HTTPS whitelisted).
-2. **Contact Privacy By Design**:
-   - Phone numbers and emails are strictly **HIDDEN** across all public teacher/student profiles, searches, batches, and messaging.
-   - Contact details are unlocked ONLY via a formal connection workflow (`ConnectionRequest` + `ContactAccess`) approved by Admin and accessed via a dedicated secure endpoint: `GET /api/v1/connections/{id}/contact/`.
-3. **Consolidated App Structure**:
-   - All models consolidated in [study/models.py](file:///c:/Users/Dell%20Pc/Desktop/Learning/my_learning_project/study/models.py).
-   - All serializers consolidated in [study/serializers.py](file:///c:/Users/Dell%20Pc/Desktop/Learning/my_learning_project/study/serializers.py).
-   - All views and business logic consolidated in [study/views.py](file:///c:/Users/Dell%20Pc/Desktop/Learning/my_learning_project/study/views.py).
-4. **Standardized API Response**:
-   - Every response follows a unified JSON envelope:
-     ```json
-     {
-       "success": true,
-       "message": "...",
-       "data": { ... }
-     }
-     ```
+**TutorOn India** is an enterprise-grade EdTech student-teacher marketplace and online coaching platform backend designed for India. It connects students with verified teachers while strictly protecting user privacy through admin-controlled contact unlocking.
 
 ---
 
-## 🔑 Demo Credentials (from `seed_demo_data`)
-
-| Role | Email | Password | Notes |
-| :--- | :--- | :--- | :--- |
-| **Admin** | `admin@tutoron.in` | `Admin@12345` | Full admin privileges |
-| **Teacher** | `rajesh.sharma@tutoron.in` | `Teacher@12345` | Physics / Maths, **VERIFIED** |
-| **Teacher** | `ananya.verma@tutoron.in` | `Teacher@12345` | Chemistry / Biology, **VERIFIED** |
-| **Teacher** | `amit.patel@tutoron.in` | `Teacher@12345` | English, **PENDING_VERIFICATION** |
-| **Student** | `aarav.kumar@student.in` | `Student@12345` | Enrolled in JEE Batch |
-| **Student** | `priya.singh@student.in` | `Student@12345` | Enrolled in JEE Batch |
-| **Student** | `rohit.sharma@student.in` | `Student@12345` | Enrolled in NEET Batch |
+# 📑 TABLE OF CONTENTS
+1. [SECTION 1: Admin Control Panel & Web Dashboard APIs](#-section-1-admin-control-panel--web-dashboard-apis)
+2. [SECTION 2: Mobile Application APIs (Student & Teacher Apps)](#-section-2-mobile-application-apis-student--teacher-apps)
+3. [SECTION 3: Architecture, Credentials, Setup & Deployment Guide](#-section-3-architecture-credentials-setup--deployment-guide)
 
 ---
 
-## 🚀 Getting Started
+# 🛡️ SECTION 1: Admin Control Panel & Web Dashboard APIs
 
-### 1. Migrations & Seeding
-```bash
-python manage.py makemigrations study
-python manage.py migrate
-python manage.py seed_demo_data
-```
-
-### 2. Running Automated Tests
-```bash
-python manage.py test study
-```
-
-### 3. Running the Server
-```bash
-python manage.py runserver
-```
-
-### 4. Interactive API Documentation
-- **Swagger UI**: [http://127.0.0.1:8000/api/docs/](http://127.0.0.1:8000/api/docs/)
-- **ReDoc**: [http://127.0.0.1:8000/api/redoc/](http://127.0.0.1:8000/api/redoc/)
-- **OpenAPI Schema**: [http://127.0.0.1:8000/api/schema/](http://127.0.0.1:8000/api/schema/)
-- **Django Admin**: [http://127.0.0.1:8000/admin/](http://127.0.0.1:8000/admin/)
+All endpoints in this section require an authenticated user with `role="ADMIN"` or `is_staff=True` passed in the `Authorization: Bearer <Admin_JWT>` header.
 
 ---
 
-## 📚 API Endpoints, Payloads & Responses
+### 1.1 Admin Dashboard & Global Analytics
 
-### 1. Authentication (`/api/v1/auth/`)
-
-#### 🔹 Student Registration
-- **URL**: `POST /api/v1/auth/register/student/`
-- **Request Payload**:
-  ```json
-  {
-    "email": "student.new@example.com",
-    "password": "Password@123",
-    "first_name": "Rohan",
-    "last_name": "Mehta",
-    "phone": "+919876543210",
-    "grade_target": "Class 12 CBSE"
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Student registered successfully.",
-    "data": {
-      "user_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
-      "email": "student.new@example.com",
-      "role": "STUDENT",
-      "tokens": {
-        "access": "eyJhbGciOiJIUzI1NiIsIn...",
-        "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
-      }
-    }
-  }
-  ```
-
-#### 🔹 Teacher Registration
-- **URL**: `POST /api/v1/auth/register/teacher/`
-- **Request Payload**:
-  ```json
-  {
-    "email": "teacher.new@example.com",
-    "password": "Teacher@12345",
-    "first_name": "Vikram",
-    "last_name": "Malhotra",
-    "phone": "+919811122233",
-    "headline": "Senior Mathematics Faculty | 10+ Years Exp",
-    "bio": "Specialized in IIT JEE Advanced calculus and algebra.",
-    "subjects": ["Mathematics", "Statistics"],
-    "qualifications": "M.Sc Mathematics (IIT Bombay)",
-    "experience_years": 10,
-    "hourly_rate": 1500.00
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Teacher registered successfully. Account is pending verification.",
-    "data": {
-      "user_id": "d5e6f7a8-1234-4567-89ab-cdef01234567",
-      "email": "teacher.new@example.com",
-      "role": "TEACHER",
-      "verification_status": "PENDING_VERIFICATION",
-      "tokens": {
-        "access": "eyJhbGciOiJIUzI1NiIsIn...",
-        "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
-      }
-    }
-  }
-  ```
-
-#### 🔹 User Login (JWT)
-- **URL**: `POST /api/v1/auth/login/`
-- **Request Payload**:
-  ```json
-  {
-    "email": "admin@tutoron.in",
-    "password": "Admin@12345"
-  }
-  ```
-- **Response Payload (`200 OK`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Login successful.",
-    "data": {
-      "access": "eyJhbGciOiJIUzI1NiIsIn...",
-      "refresh": "eyJhbGciOiJIUzI1NiIsIn...",
-      "user": {
-        "id": "e2a1b3c4-5d6e-7f8a-9b0c-1d2e3f4a5b6c",
-        "email": "admin@tutoron.in",
-        "first_name": "Super",
-        "last_name": "Admin",
-        "role": "ADMIN",
-        "is_verified": true
-      }
-    }
-  }
-  ```
-
-#### 🔹 Refresh Token
-- **URL**: `POST /api/v1/auth/token/refresh/`
-- **Request Payload**:
-  ```json
-  {
-    "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
-  }
-  ```
-- **Response Payload (`200 OK`)**:
-  ```json
-  {
-    "access": "eyJhbGciOiJIUzI1NiIsIn..."
-  }
-  ```
-
-#### 🔹 Forgot Password & Reset Password
-- **Forgot Password**: `POST /api/v1/auth/forgot-password/`
-  ```json
-  {
-    "email": "student.new@example.com"
-  }
-  ```
-- **Reset Password**: `POST /api/v1/auth/reset-password/`
-  ```json
-  {
-    "token": "d8e3b4a2-reset-token...",
-    "new_password": "NewStrongPassword@123"
-  }
-  ```
-
----
-
-### 2. Teachers Directory (`/api/v1/teachers/`)
-
-#### 🔹 Public Teachers Search & Filter
-- **URL**: `GET /api/v1/teachers/?subject=Physics&target_exam=IIT%20JEE&search=Sharma`
-- **Headers**: *(Public, No token required)*
-- **Response Payload (`200 OK`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Teachers retrieved successfully.",
-    "data": {
-      "count": 1,
-      "next": null,
-      "previous": null,
-      "results": [
-        {
-          "id": "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
-          "teacher_code": "TCH-10248",
-          "first_name": "Dr. Rajesh",
-          "last_name": "Sharma",
-          "headline": "IIT Delhi Physics Alum | 12+ Yrs Coaching",
-          "bio": "Mentored 50+ Top 100 AIR rankers in IIT-JEE Advanced.",
-          "subjects": ["Physics"],
-          "qualifications": "Ph.D IIT Delhi, B.Tech IIT Roorkee",
-          "experience_years": 12,
-          "hourly_rate": "1500.00",
-          "rating": "4.90",
-          "total_reviews": 48,
-          "total_students": 250,
-          "verification_status": "VERIFIED",
-          "profile_image": "/media/profiles/rajesh_sharma.jpg"
-        }
-      ]
-    }
-  }
-  ```
-  *(Note: Phone numbers and emails are strictly omitted for privacy).*
-
-#### 🔹 Teacher Verification Submission
-- **URL**: `POST /api/v1/teacher/verification/`
-- **Headers**: `Authorization: Bearer <Teacher_JWT>`
-- **Content-Type**: `multipart/form-data`
-- **Request Form Data**:
-  - `document_type`: `"AADHAAR"` *(options: `AADHAAR`, `PAN`, `DEGREE`, `EXPERIENCE_CERTIFICATE`)*
-  - `document_file`: `[File Attachment - PDF / JPG]`
-  - `notes`: `"Submitting IIT Delhi Ph.D degree and Aadhaar card."`
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Verification documents uploaded successfully. Admin will review within 24-48 hours.",
-    "data": {
-      "id": "f1e2d3c4-b5a6-7890-1234-56789abcdef0",
-      "document_type": "AADHAAR",
-      "status": "PENDING",
-      "submitted_at": "2026-09-29T10:15:00Z"
-    }
-  }
-  ```
-
----
-
-### 3. Batches (`/api/v1/batches/` & `/api/v1/teacher/batches/`)
-
-#### 🔹 Teacher Create Batch
-- **URL**: `POST /api/v1/teacher/batches/`
-- **Headers**: `Authorization: Bearer <Teacher_JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "title": "Master Class in Physics for JEE Advanced 2027",
-    "subject": "Physics",
-    "target_exam": "IIT JEE Advanced",
-    "start_date": "2026-10-01",
-    "end_date": "2027-04-30",
-    "max_students": 30,
-    "price": "14999.00",
-    "is_published": true,
-    "schedule_description": "Mon, Wed, Fri: 6:00 PM - 7:30 PM IST"
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Batch created successfully.",
-    "data": {
-      "id": "3c2b1a0f-9e8d-7c6b-5a4f-3e2d1c0b9a8f",
-      "title": "Master Class in Physics for JEE Advanced 2027",
-      "subject": "Physics",
-      "target_exam": "IIT JEE Advanced",
-      "enrolled_count": 0,
-      "max_students": 30,
-      "price": "14999.00",
-      "is_published": true
-    }
-  }
-  ```
-
-#### 🔹 Student Request Enrollment in Batch
-- **URL**: `POST /api/v1/batches/{batch_id}/enroll/`
-- **Headers**: `Authorization: Bearer <Student_JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "notes": "Interested in enrolling for JEE Advanced preparation."
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Enrollment request submitted successfully.",
-    "data": {
-      "enrollment_id": "a9b8c7d6-e5f4-3210-fedc-ba9876543210",
-      "status": "REQUESTED",
-      "payment_status": "PENDING"
-    }
-  }
-  ```
-
----
-
-### 4. Classes & Attendance (`/api/v1/`)
-
-#### 🔹 Teacher Create Class (Zoom / Google Meet / YouTube / Recorded)
-- **URL**: `POST /api/v1/teacher/batches/{batch_id}/classes/`
-- **Headers**: `Authorization: Bearer <Teacher_JWT>`
-- **Request Payload (Example 1: Google Meet / Zoom)**:
-  ```json
-  {
-    "title": "Session 01: Rotational Mechanics Fundamentals",
-    "description": "Covering Moment of Inertia and Parallel Axis Theorem.",
-    "content_type": "GOOGLE_MEET",
-    "meeting_url": "https://meet.google.com/abc-defg-hij",
-    "scheduled_at": "2026-10-05T18:00:00+05:30",
-    "duration_minutes": 90
-  }
-  ```
-- **Request Payload (Example 2: Recorded Video Upload - `multipart/form-data`)**:
-  - `title`: `"Recorded Lecture: Optics Part 1"`
-  - `content_type`: `"RECORDED_VIDEO"`
-  - `video_file`: `[MP4 File Upload]`
-  - `duration_minutes`: `60`
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Class scheduled successfully.",
-    "data": {
-      "id": "e4d3c2b1-a0f9-8e7d-6c5b-4a3f2e1d0c9b",
-      "title": "Session 01: Rotational Mechanics Fundamentals",
-      "content_type": "GOOGLE_MEET",
-      "meeting_url": "https://meet.google.com/abc-defg-hij",
-      "scheduled_at": "2026-10-05T18:00:00+05:30",
-      "duration_minutes": 90
-    }
-  }
-  ```
-
-#### 🔹 Mark Attendance
-- **URL**: `POST /api/v1/classes/{class_id}/attendance/`
-- **Headers**: `Authorization: Bearer <Teacher_JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "student_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
-    "status": "PRESENT"
-  }
-  ```
-- **Response Payload (`200 OK`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Attendance marked as PRESENT.",
-    "data": {
-      "student_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
-      "status": "PRESENT",
-      "marked_at": "2026-10-05T18:15:20Z"
-    }
-  }
-  ```
-
----
-
-### 5. Study Materials & Bookmarks (`/api/v1/`)
-
-#### 🔹 Teacher Upload Study Material
-- **URL**: `POST /api/v1/teacher/batches/{batch_id}/materials/`
-- **Headers**: `Authorization: Bearer <Teacher_JWT>`
-- **Content-Type**: `multipart/form-data`
-- **Form Data**:
-  - `title`: `"Formula Sheet: Electrostatics & Magnetism"`
-  - `material_type`: `"DOCUMENT"` *(options: `DOCUMENT`, `ASSIGNMENT`, `NOTES`)*
-  - `file`: `[PDF File]`
-  - `is_downloadable`: `true`
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Material uploaded successfully.",
-    "data": {
-      "id": "b2c3d4e5-f6a7-8901-2345-6789abcdef01",
-      "title": "Formula Sheet: Electrostatics & Magnetism",
-      "is_downloadable": true,
-      "uploaded_at": "2026-09-30T10:00:00Z"
-    }
-  }
-  ```
-
-#### 🔹 Bookmark Material
-- **URL**: `POST /api/v1/materials/{material_id}/bookmark/`
-- **Headers**: `Authorization: Bearer <Student_JWT>`
-- **Response Payload (`200 OK`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Material bookmarked successfully."
-  }
-  ```
-
----
-
-### 6. Connections & Privacy Contact Unlocking (`/api/v1/connections/`)
-
-#### 🔹 Request Connection (Student to Teacher)
-- **URL**: `POST /api/v1/connections/`
-- **Headers**: `Authorization: Bearer <Student_JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "teacher_id": "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
-    "message": "Hello Sir, I want to discuss 1-on-1 coaching for JEE Advanced 2027."
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Connection request sent. Awaiting review.",
-    "data": {
-      "id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-      "status": "PENDING",
-      "created_at": "2026-09-30T10:30:00Z"
-    }
-  }
-  ```
-
-#### 🔹 Dedicated Secure Contact Unlock
-- **URL**: `GET /api/v1/connections/{connection_id}/contact/`
-- **Headers**: `Authorization: Bearer <Student_or_Teacher_JWT>`
-- **Security Check**: Enforces that connection is approved and neither party has blocked the other.
-- **Response Payload (`200 OK`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Contact details unlocked securely.",
-    "data": {
-      "connection_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-      "teacher_name": "Dr. Rajesh Sharma",
-      "phone": "+919876543210",
-      "email": "rajesh.sharma@tutoron.in",
-      "unlocked_at": "2026-09-30T11:00:00Z"
-    }
-  }
-  ```
-
----
-
-### 7. In-App Messaging (`/api/v1/conversations/`)
-
-#### 🔹 Send Message
-- **URL**: `POST /api/v1/conversations/{conversation_id}/messages/`
-- **Headers**: `Authorization: Bearer <JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "content": "Sir, when is the next doubt-clearing session scheduled?"
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Message sent.",
-    "data": {
-      "id": "11223344-5566-7788-99aa-bbccddeeff00",
-      "sender_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
-      "content": "Sir, when is the next doubt-clearing session scheduled?",
-      "sent_at": "2026-09-30T11:05:00Z"
-    }
-  }
-  ```
-
----
-
-### 8. Reviews, Reports & User Blocks
-
-#### 🔹 Submit Batch Review (Enrolled Students Only)
-- **URL**: `POST /api/v1/batches/{batch_id}/reviews/`
-- **Headers**: `Authorization: Bearer <Student_JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "rating": 5,
-    "comment": "Outstanding conceptual clarity! Best physics faculty for JEE preparation."
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "Review submitted successfully.",
-    "data": {
-      "id": "aa11bb22-cc33-dd44-ee55-ff6677889900",
-      "rating": 5,
-      "comment": "Outstanding conceptual clarity! Best physics faculty for JEE preparation.",
-      "created_at": "2026-09-30T11:10:00Z"
-    }
-  }
-  ```
-
-#### 🔹 Block Abusive User
-- **URL**: `POST /api/v1/blocks/`
-- **Headers**: `Authorization: Bearer <JWT>`
-- **Request Payload**:
-  ```json
-  {
-    "blocked_user_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
-    "reason": "Repeated inappropriate spam in private chat."
-  }
-  ```
-- **Response Payload (`201 Created`)**:
-  ```json
-  {
-    "success": true,
-    "message": "User has been blocked. Messages and contact access are now disabled."
-  }
-  ```
-
----
-
-### 9. Admin Control Panel (`/api/v1/admin/`)
-
-All admin endpoints require an authenticated user with `role="ADMIN"` or `is_staff=True` passed in the `Authorization: Bearer <Admin_JWT>` header.
-
----
-
-#### 9.1 Admin Dashboard & Global Analytics
-
-##### 🔹 1. Dashboard Comprehensive KPI Stats
+#### 🔹 1. Dashboard Comprehensive KPI Stats
 - **URL**: `GET /api/v1/admin/dashboard/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -589,7 +54,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 2. Dashboard Live Activity Feed
+#### 🔹 2. Dashboard Live Activity Feed
 - **URL**: `GET /api/v1/admin/dashboard/activity/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -616,7 +81,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 3. Dashboard Global Search
+#### 🔹 3. Dashboard Global Search
 - **URL**: `GET /api/v1/admin/dashboard/search/?q=rajesh`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -638,9 +103,9 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
 
 ---
 
-#### 9.2 User & Profile Management
+### 1.2 User & Profile Management
 
-##### 🔹 4. Admin Users Directory
+#### 🔹 4. Admin Users Directory
 - **URL**: `GET /api/v1/admin/users/?role=TEACHER&is_active=true&search=rajesh`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -667,7 +132,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 5. Admin Teachers Directory & CRUD
+#### 🔹 5. Admin Teachers Directory & CRUD
 - **URL**: `GET /api/v1/admin/teachers/?verification_status=VERIFIED&page=1`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -699,38 +164,86 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
 - **Update Teacher**: `PATCH /api/v1/admin/teachers/{id}/`
 - **Delete Teacher**: `DELETE /api/v1/admin/teachers/{id}/`
 
-##### 🔹 6. Admin Students Directory & CRUD
-- **URL**: `GET /api/v1/admin/students/?page=1&search=aarav`
+#### 🔹 6. Admin Students Directory & CRUD
+- **URL**: `GET /api/v1/admin/students/?page=1&status=ACTIVE&board=CBSE&search=aarav`
+- **Alternative URL**: `GET /api/v1/students/?page=1&status=ACTIVE&board=CBSE&search=aarav`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `page`: Page number (e.g. `1`)
+  - `status`: Filter by status (`ACTIVE`, `PENDING`, `INACTIVE`)
+  - `board`: Filter by board (`CBSE`, `ICSE`, `State Board`)
+  - `search`: Search student by name, student code, email, phone, city, education level
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
   ```json
   {
     "success": true,
-    "message": "Students fetched successfully",
+    "message": "Students list retrieved successfully",
+    "counts": {
+      "total_students": 8452,
+      "active_learners": 7890,
+      "inactive_accounts": 220,
+      "total_learners_badge": "8,452 Total Learners"
+    },
+    "total_count": 8452,
     "data": [
       {
         "id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
-        "user": {
-          "id": "11223344-5566-7788-99aa-bbccddeeff00",
-          "email": "aarav.kumar@student.in",
-          "first_name": "Aarav",
-          "last_name": "Kumar",
-          "phone": "+919812345678"
-        },
-        "grade_target": "Class 12 - IIT JEE 2027",
-        "enrolled_batches_count": 2,
-        "is_active": true
+        "student_code": "STU-10021",
+        "avatar_initial": "AS",
+        "first_name": "Aarav",
+        "last_name": "Sharma",
+        "full_name": "Aarav Sharma",
+        "email": "aarav.sharma2026@gmail.com",
+        "phone_number": "+91 98765 43210",
+        "profile_photo": null,
+        "joined": "14 Jul 2026",
+        "date_joined": "2026-07-14T10:30:00+05:30",
+        "enrollments": "3 Batches",
+        "enrollments_count": 3,
+        "status": "Active",
+        "board": "CBSE",
+        "grade_display": "Class XII (PCM) · CBSE",
+        "date_of_birth": null,
+        "gender": "MALE",
+        "education_level": "Class XII (PCM)",
+        "school_name": "Delhi Public School",
+        "city": "New Delhi",
+        "state": "Delhi",
+        "preferred_language": "English / Hindi",
+        "subjects_of_interest": ["Physics", "Chemistry", "Mathematics"],
+        "bio": "Aspiring IIT JEE Aspirant"
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 10,
+      "total": 8452,
+      "total_pages": 846
+    }
   }
   ```
+- **Create Student**: `POST /api/v1/admin/students/`
+- **Retrieve Student Detail**: `GET /api/v1/admin/students/{id}/`
+- **Update Student**: `PATCH /api/v1/admin/students/{id}/`
 - **Delete Student**: `DELETE /api/v1/admin/students/{id}/`
+- **Deactivate Student**: `POST /api/v1/admin/students/{id}/deactivate/`
+  * Sets `is_active = False` on the student user and logs an audit trail. Blocks login, live class access, materials, and enrollments.
+- **Activate Student**: `POST /api/v1/admin/students/{id}/activate/`
+  * Restores student account to `Active` (`is_active = True`) with full access.
+- **Toggle / Set Status**: `POST /api/v1/admin/students/{id}/status/` or `POST /api/v1/admin/students/{id}/toggle-status/`
+  * Accepts `{"is_active": true/false}` or `{"status": "ACTIVE"/"INACTIVE"}`.
+- **Send Administrative Notice**: `POST /api/v1/admin/students/{id}/notice/`
+  * Payload: `{"title": "Fee Submission Due", "message": "Please clear your monthly batch fee before Friday."}`
+- **Add Admin Remark**: `POST /api/v1/admin/students/{id}/remarks/`
+  * Payload: `{"remark": "Verified parent KYC contact details via phone audit."}`
+> 🔒 **Role Safety Restriction:** Only student accounts can be activated or deactivated via these endpoints. Teacher accounts cannot be deactivated (returns `400 Bad Request`).
 
 ---
 
-#### 9.3 Teacher Verification Workflow
+### 1.3 Teacher Verification Workflow
 
-##### 🔹 7. View Verification Requests Queue
+#### 🔹 7. View Verification Requests Queue
 - **URL**: `GET /api/v1/admin/teacher-verifications/?status=PENDING`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -756,7 +269,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 8. Approve Teacher Verification
+#### 🔹 8. Approve Teacher Verification
 - **URL**: `POST /api/v1/admin/teacher-verifications/{id}/approve/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Request Payload**:
@@ -778,7 +291,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 9. Reject Teacher Verification
+#### 🔹 9. Reject Teacher Verification
 - **URL**: `POST /api/v1/admin/teacher-verifications/{id}/reject/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Request Payload**:
@@ -803,9 +316,9 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
 
 ---
 
-#### 9.4 Connections & Privacy Contact Sharing
+### 1.4 Connections & Privacy Contact Sharing
 
-##### 🔹 10. View Connection Requests Queue
+#### 🔹 10. View Connection Requests Queue
 - **URL**: `GET /api/v1/admin/connections/?status=PENDING`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -827,7 +340,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 11. Admin Approve Connection & Unlock Direct Contact
+#### 🔹 11. Admin Approve Connection & Unlock Direct Contact
 - **URL**: `POST /api/v1/admin/connections/{id}/approve/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Request Payload**:
@@ -849,7 +362,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 12. Admin Reject Connection
+#### 🔹 12. Admin Reject Connection
 - **URL**: `POST /api/v1/admin/connections/{id}/reject/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Request Payload**:
@@ -872,9 +385,9 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
 
 ---
 
-#### 9.5 Batches, Enrollments & Operations
+### 1.5 Batches, Enrollments & Operations
 
-##### 🔹 13. Admin Batches Directory
+#### 🔹 13. Admin Batches Directory
 - **URL**: `GET /api/v1/admin/batches/?status=PUBLISHED`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -905,7 +418,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 14. Admin Enrollments Directory
+#### 🔹 14. Admin Enrollments Directory
 - **URL**: `GET /api/v1/admin/enrollments/?status=PAYMENT_PENDING`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -926,7 +439,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 15. Admin Announcements & Promotional Updates
+#### 🔹 15. Admin Announcements & Promotional Updates
 - **URL**: `GET /api/v1/admin/announcements/`
 - **Create**: `POST /api/v1/admin/announcements/`
 - **Request Payload**:
@@ -953,7 +466,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 16. Admin Promotional Banners
+#### 🔹 16. Admin Promotional Banners
 - **URL**: `GET /api/v1/admin/banners/`
 - **Create**: `POST /api/v1/admin/banners/` (`multipart/form-data`)
   - `title`: `"IIT JEE Crash Course Banner"`
@@ -963,9 +476,9 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
 
 ---
 
-#### 9.6 Content Moderation, Reviews & Incident Reports
+### 1.6 Content Moderation, Reviews & Incident Reports
 
-##### 🔹 17. Admin Study Materials Moderation
+#### 🔹 17. Admin Study Materials Moderation
 - **URL**: `GET /api/v1/admin/materials/?status=REPORTED`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -987,7 +500,84 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   ```
 - **Takedown Material**: `PATCH /api/v1/admin/materials/{id}/` with `{"status": "HIDDEN"}`
 
-##### 🔹 18. Admin Reviews Moderation
+#### 🔹 18. Admin Teacher Announcements Moderation (Content > Teacher Announcements)
+- **URL**: `GET /api/v1/admin/teacher-announcements/?tab=all&page=1`
+- **Alternative URL**: `GET /api/v1/content/teacher-announcements/?tab=all&page=1`
+- **Method**: `GET`
+- **Headers**: `Authorization: Bearer <Admin_JWT>`
+- **Query Parameters**:
+  - `tab`: `all` | `published` | `high_priority_urgent` | `flagged` | `drafts`
+  - `status`: `PUBLISHED` | `DRAFT` | `FLAGGED`
+  - `priority`: `NORMAL` | `HIGH` | `URGENT`
+  - `search`: Search by announcement title, message, code (`ANN-T-70021`), teacher name, batch title
+  - `page`: Page number (e.g. `1`)
+  - `page_size`: Number of rows per page (default `10`)
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Teacher announcements retrieved successfully",
+    "counts": {
+      "all": 6,
+      "published": 4,
+      "high_priority_urgent": 3,
+      "flagged_by_admin": 1,
+      "drafts": 1
+    },
+    "data": [
+      {
+        "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+        "code": "ANN-T-70021",
+        "title": "Rescheduled Doubt-Clearing Session",
+        "message": "Dear students, our Wednesday doubt-clearing session has been rescheduled to Thursday 6:00 PM.",
+        "priority": "HIGH",
+        "priority_badge": "High",
+        "status": "PUBLISHED",
+        "status_display": "Published",
+        "is_flagged": false,
+        "flag_reason": "",
+        "admin_notes": "",
+        "faculty": {
+          "id": "4163070a-d786-4392-87eb-77c5fabf5489",
+          "name": "Dr. Rajesh Sharma",
+          "subject": "Physics",
+          "avatar": null,
+          "initial": "RS"
+        },
+        "faculty_name": "Dr. Rajesh Sharma",
+        "faculty_subject": "Physics",
+        "batch": "c34fbd50-9468-4d7a-a59e-b9d7751fb2b4",
+        "batch_info": {
+          "id": "c34fbd50-9468-4d7a-a59e-b9d7751fb2b4",
+          "title": "Advanced Electromagnetism & Modern Physics",
+          "code": "JEE-PHY-ELM-01",
+          "subject": "Physics",
+          "grade_level": "Class 12"
+        },
+        "batch_title": "Advanced Electromagnetism & Modern Physics",
+        "batch_code": "JEE-PHY-ELM-01",
+        "attachment": null,
+        "published": "22 Sep 2026, 05:30 PM",
+        "published_at": "2026-09-22T17:30:00+05:30",
+        "created_at": "2026-09-22T17:30:00+05:30",
+        "updated_at": "2026-09-22T17:30:00+05:30"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 10,
+      "total": 6,
+      "total_pages": 1
+    }
+  }
+  ```
+- **Flag Announcement by Admin**: `POST /api/v1/admin/teacher-announcements/{id}/flag/`
+  - **Payload**: `{"reason": "Notice contains private WhatsApp link", "admin_notes": "Violated platform policy"}`
+- **Unflag Announcement**: `POST /api/v1/admin/teacher-announcements/{id}/unflag/`
+- **Publish Draft Announcement**: `POST /api/v1/admin/teacher-announcements/{id}/publish/`
+- **Delete Announcement**: `DELETE /api/v1/admin/teacher-announcements/{id}/`
+
+#### 🔹 19. Admin Reviews Moderation
 - **URL**: `GET /api/v1/admin/reviews/?status=FLAGGED`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -1011,7 +601,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   ```
 - **Remove Review**: `DELETE /api/v1/admin/reviews/{id}/` or `PATCH` with `{"status": "REMOVED"}`
 
-##### 🔹 19. Admin Incident Reports & Resolution
+#### 🔹 19. Admin Incident Reports & Resolution
 - **URL**: `GET /api/v1/admin/reports/?status=OPEN`
 - **Resolve Report**: `POST /api/v1/admin/reports/{id}/resolve/`
 - **Request Payload**:
@@ -1037,9 +627,9 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
 
 ---
 
-#### 9.7 Financial Transactions & Auditing
+### 1.7 Financial Transactions & Auditing
 
-##### 🔹 20. Admin Financial Transactions / Payments
+#### 🔹 20. Admin Financial Transactions / Payments
 - **URL**: `GET /api/v1/admin/payments/?status=SUCCESS`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -1063,7 +653,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 21. Admin Audit Logs List (Category Filtered)
+#### 🔹 21. Admin Audit Logs List (Category Filtered)
 - **URL**: `GET /api/v1/admin/audit-logs/?category=Verification&search=AUD-10081`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -1088,7 +678,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 22. Admin Audit Inspection Details (Before vs After State Transition)
+#### 🔹 22. Admin Audit Inspection Details (Before vs After State Transition)
 - **URL**: `GET /api/v1/admin/audit-logs/AUD-10081/` (or by UUID)
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Response Payload (`200 OK`)**:
@@ -1123,7 +713,7 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
-##### 🔹 23. Trigger Scheduled Class Reminders (Celery Dispatch)
+#### 🔹 23. Trigger Scheduled Class Reminders (Celery Dispatch)
 - **URL**: `POST /api/v1/admin/classes/send-reminders/`
 - **Headers**: `Authorization: Bearer <Admin_JWT>`
 - **Request Payload**:
@@ -1145,27 +735,795 @@ All admin endpoints require an authenticated user with `role="ADMIN"` or `is_sta
   }
   ```
 
+#### 🔹 24. Admin Notifications & Broadcast System
+- **View Admin Notifications (Personal Inbox)**: `GET /api/v1/admin/notifications/`
+- **View All Platform Notifications (Global Audit View)**: `GET /api/v1/admin/notifications/?all=true`
+- **Mark Notification as Read**: `POST /api/v1/admin/notifications/{id}/read/`
+  *(Note: Super Admin privileges allow marking any notification as read across the platform).*
+- **Mark All Notifications as Read**: `POST /api/v1/admin/notifications/read-all/`
+- **Send Broadcast Notification**: `POST /api/v1/admin/notifications/send/` (or `/api/v1/admin/notifications/broadcast/`)
+  * **Headers**: `Authorization: Bearer <Admin_JWT>`, `Content-Type: application/json`
+
+  * **Scenario 1: Send to Teachers Only (`audience: "TEACHERS"`)**:
+    ```json
+    {
+      "title": "Monthly Faculty Review Meeting",
+      "message": "All teachers are requested to join the monthly review meeting at 6:00 PM today.",
+      "audience": "TEACHERS"
+    }
+    ```
+
+  * **Scenario 2: Send to Students Only (`audience: "STUDENTS"`)**:
+    ```json
+    {
+      "title": "Mid-Term Examination Datesheet",
+      "message": "Dear Students, the mid-term exam schedule has been published. Please check your batch portal.",
+      "audience": "STUDENTS"
+    }
+    ```
+
+  * **Scenario 3: Send to Both Teachers & Students (`audience: "ALL_USERS"`)**:
+    ```json
+    {
+      "title": "Platform Scheduled Maintenance Notice",
+      "message": "The platform will undergo maintenance tonight between 11:00 PM and 1:00 AM.",
+      "audience": "ALL_USERS"
+    }
+    ```
+
+  * **Response Payload (`201 Created`)**:
+    ```json
+    {
+      "success": true,
+      "message": "Notification sent successfully to 16 Teachers & Students.",
+      "data": {
+        "title": "Platform Scheduled Maintenance Notice",
+        "message": "The platform will undergo maintenance tonight between 11:00 PM and 1:00 AM.",
+        "audience": "ALL_USERS",
+        "recipients_count": 16
+      }
+    }
+    ```
 
 ---
 
-## 🐳 Docker & Celery Architecture
+# 📱 SECTION 2: Mobile Application APIs (Student & Teacher Apps)
 
-### Running with Docker Compose
-```bash
-docker compose up --build
-```
-This boots up:
-1. `web`: Django backend API on `http://localhost:8000`
-2. `db`: PostgreSQL 16 database
-3. `redis`: Redis cache & message broker
-4. `celery`: Background asynchronous worker (email delivery, notifications)
-5. `celery-beat`: Scheduler for recurring jobs (e.g., class reminders dispatched every 15 mins)
+This section contains all client endpoints consumed by the Flutter/React Native/iOS/Android mobile apps for **Students** and **Teachers**.
 
-### Running Celery Locally (Manual)
-```bash
-# Terminal 1: Celery Worker
-celery -A my_learning_project worker --loglevel=info
+---
 
-# Terminal 2: Celery Beat (Periodic reminders)
-celery -A my_learning_project beat --loglevel=info
-```
+### 2.1 Authentication & User Security (`/api/v1/auth/`)
+
+#### 🔹 1. Student Registration
+- **URL**: `POST /api/v1/auth/register/student/`
+- **Request Payload**:
+  ```json
+  {
+    "email": "student.aarav@example.com",
+    "password": "Student@12345",
+    "first_name": "Aarav",
+    "last_name": "Kumar",
+    "phone": "+919876543210",
+    "grade_target": "Class 12 - IIT JEE 2027"
+  }
+  ```
+- **Response Payload (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Student registered successfully.",
+    "data": {
+      "user_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
+      "email": "student.aarav@example.com",
+      "role": "STUDENT",
+      "tokens": {
+        "access": "eyJhbGciOiJIUzI1NiIsIn...",
+        "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
+      }
+    }
+  }
+  ```
+
+#### 🔹 2. Teacher Registration (Pending Review)
+- **URL**: `POST /api/v1/auth/register/teacher/`
+- **Request Payload**:
+  ```json
+  {
+    "email": "teacher.rajesh@tutoron.in",
+    "password": "Teacher@12345",
+    "first_name": "Dr. Rajesh",
+    "last_name": "Sharma",
+    "phone": "+919811122233",
+    "headline": "IIT Delhi Physics Alum | 12+ Yrs Coaching",
+    "bio": "Mentored 50+ Top 100 AIR rankers in IIT-JEE Advanced.",
+    "subjects": ["Physics"],
+    "qualifications": "Ph.D IIT Delhi, B.Tech IIT Roorkee",
+    "experience_years": 12,
+    "hourly_rate": 1500.00
+  }
+  ```
+- **Response Payload (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Teacher registered successfully. Account is pending verification.",
+    "data": {
+      "user_id": "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
+      "email": "teacher.rajesh@tutoron.in",
+      "role": "TEACHER",
+      "verification_status": "PENDING_VERIFICATION",
+      "tokens": {
+        "access": "eyJhbGciOiJIUzI1NiIsIn...",
+        "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
+      }
+    }
+  }
+  ```
+
+#### 🔹 3. Unified User Login (JWT)
+- **URL**: `POST /api/v1/auth/login/`
+- **Request Payload**:
+  ```json
+  {
+    "email": "student.aarav@example.com",
+    "password": "Student@12345"
+  }
+  ```
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Login successful.",
+    "data": {
+      "access": "eyJhbGciOiJIUzI1NiIsIn...",
+      "refresh": "eyJhbGciOiJIUzI1NiIsIn...",
+      "user": {
+        "id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
+        "email": "student.aarav@example.com",
+        "first_name": "Aarav",
+        "last_name": "Kumar",
+        "role": "STUDENT",
+        "is_verified": true
+      }
+    }
+  }
+  ```
+
+#### 🔹 4. Refresh Access Token
+- **URL**: `POST /api/v1/auth/token/refresh/`
+- **Request Payload**:
+  ```json
+  {
+    "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
+  }
+  ```
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "access": "eyJhbGciOiJIUzI1NiIsIn..."
+  }
+  ```
+
+#### 🔹 5. User Logout (Blacklist Refresh Token)
+- **URL**: `POST /api/v1/auth/logout/`
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Payload**:
+  ```json
+  {
+    "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
+  }
+  ```
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Successfully logged out."
+  }
+  ```
+
+#### 🔹 6. Forgot Password & Reset Password
+- **Forgot Password**: `POST /api/v1/auth/forgot-password/`
+  ```json
+  {
+    "email": "student.aarav@example.com"
+  }
+  ```
+- **Reset Password**: `POST /api/v1/auth/reset-password/`
+  ```json
+  {
+    "token": "reset-uuid-token-from-email",
+    "new_password": "NewSecurePassword@123"
+  }
+  ```
+
+#### 🔹 7. Get / Update Current User Profile (`/auth/me/`)
+- **URL**: `GET /api/v1/auth/me/` & `PATCH /api/v1/auth/me/`
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Patch Request Payload**:
+  ```json
+  {
+    "first_name": "Aarav",
+    "last_name": "Sharma"
+  }
+  ```
+
+#### 🔹 8. Block / Unblock User
+- **Block**: `POST /api/v1/blocks/`
+  ```json
+  {
+    "blocked_user_id": "user-uuid-to-block",
+    "reason": "Harassment in chat"
+  }
+  ```
+- **Unblock**: `DELETE /api/v1/blocks/{blocked_user_id}/`
+
+---
+
+### 2.2 Student Mobile Module (`/api/v1/student/`)
+
+#### 🔹 9. Student Mobile Home Dashboard (Main Screen)
+- **URL**: `GET /api/v1/student/dashboard/`
+- **Headers**: `Authorization: Bearer <Student_JWT>`
+- **Request Payload**: None *(GET request)*
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Student dashboard retrieved",
+    "data": {
+      "greeting": {
+        "title": "Hello, Student 👋",
+        "subtitle": "Ready to learn today?",
+        "avatar_initial": "S"
+      },
+      "live_class": {
+        "id": "c-7701",
+        "title": "Chemistry — Organic Reactions",
+        "teacher_name": "Ms. Sunita Patel",
+        "class_type": "YOUTUBE",
+        "platform": "YouTube",
+        "meeting_url": "https://www.youtube.com/watch?v=live_stream_id",
+        "external_url": "https://www.youtube.com/watch?v=live_stream_id",
+        "duration": "1h",
+        "is_live": true,
+        "status_badge": "LIVE NOW"
+      },
+      "quick_stats": {
+        "batches": 3,
+        "classes": 3,
+        "materials": 3,
+        "alerts": 3
+      },
+      "upcoming_classes": [
+        {
+          "id": "cls-101",
+          "batch_id": "b-1",
+          "batch_title": "Class 12 Advanced Mathematics",
+          "title": "Mathematics — Calculus Basics",
+          "teacher_name": "Dr. Priya Sharma",
+          "class_type": "GOOGLE_MEET",
+          "platform": "Google Meet",
+          "meeting_url": "https://meet.google.com/abc-defg-hij",
+          "scheduled_date": "2026-09-30T10:30:00Z",
+          "formatted_time": "Today, 4:00 PM",
+          "duration_minutes": 60
+        },
+        {
+          "id": "cls-102",
+          "batch_id": "b-2",
+          "batch_title": "Target JEE Advanced Physics",
+          "title": "Physics — Electrostatics",
+          "teacher_name": "Prof. Arjun Mehta",
+          "class_type": "ZOOM",
+          "platform": "Zoom",
+          "meeting_url": "https://zoom.us/j/98765432101",
+          "scheduled_date": "2026-09-30T13:00:00Z",
+          "formatted_time": "Today, 6:30 PM",
+          "duration_minutes": 90
+        }
+      ],
+      "enrolled_batches_count": 3,
+      "my_batches": [
+        {
+          "id": "b-1",
+          "title": "JEE Advanced Maths 2025",
+          "subject": "Mathematics",
+          "subject_initial": "M",
+          "teacher_name": "Dr. Priya Sharma",
+          "status": "ACTIVE",
+          "students_count": 42
+        },
+        {
+          "id": "b-2",
+          "title": "NEET Physics Crash Course",
+          "subject": "Physics",
+          "subject_initial": "P",
+          "teacher_name": "Prof. Arjun Mehta",
+          "status": "ACTIVE",
+          "students_count": 36
+        },
+        {
+          "id": "b-3",
+          "title": "Organic Chemistry Mastery",
+          "subject": "Chemistry",
+          "subject_initial": "C",
+          "teacher_name": "Ms. Sunita Patel",
+          "status": "ACTIVE",
+          "students_count": 28
+        }
+      ],
+      "top_teachers": [
+        {
+          "id": "tch-1",
+          "name": "Ms. Sunita Patel",
+          "subject": "Chemistry",
+          "rating": 4.8,
+          "is_verified": true,
+          "avatar_url": "/media/profiles/sunita.jpg"
+        },
+        {
+          "id": "tch-2",
+          "name": "Mr. Rajesh Kumar",
+          "subject": "Biology",
+          "rating": 4.6,
+          "is_verified": true,
+          "avatar_url": "/media/profiles/rajesh.jpg"
+        }
+      ],
+      "unread_notifications_count": 3,
+      "attendance_summary": {
+        "total_marked": 10,
+        "present": 9,
+        "percentage": 90.0
+      }
+    }
+  }
+  ```
+
+#### 🔹 10. Student My Enrollments
+- **URL**: `GET /api/v1/student/enrollments/`
+- **Detail**: `GET /api/v1/student/enrollments/{id}/`
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "enr-101",
+        "batch": {
+          "id": "batch-1",
+          "title": "Target JEE Advanced 2027",
+          "subject": "Physics",
+          "teacher_name": "Dr. Rajesh Sharma"
+        },
+        "status": "ACTIVE",
+        "payment_status": "PAID",
+        "enrolled_at": "2026-09-25T10:00:00Z"
+      }
+    ]
+  }
+  ```
+
+#### 🔹 11. Student Bookmarked Study Materials
+- **URL**: `GET /api/v1/student/bookmarks/`
+- **Headers**: `Authorization: Bearer <Student_JWT>`
+
+#### 🔹 12. Student Fee Payment History
+- **URL**: `GET /api/v1/student/payments/`
+- **Headers**: `Authorization: Bearer <Student_JWT>`
+
+---
+
+### 2.3 Teacher Mobile Module (`/api/v1/teacher/`)
+
+#### 🔹 13. Teacher Mobile Dashboard Stats
+- **URL**: `GET /api/v1/teacher/dashboard/`
+- **Headers**: `Authorization: Bearer <Teacher_JWT>`
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Teacher dashboard loaded.",
+    "data": {
+      "verification_status": "VERIFIED",
+      "total_batches": 3,
+      "total_students_enrolled": 48,
+      "pending_enrollment_requests": 2,
+      "upcoming_classes_today": 1,
+      "monthly_earnings": 45000.00
+    }
+  }
+  ```
+
+#### 🔹 14. Submit Teacher Verification Documents
+- **URL**: `POST /api/v1/teacher/verification/`
+- **Headers**: `Authorization: Bearer <Teacher_JWT>`
+- **Content-Type**: `multipart/form-data`
+- **Form Data**:
+  - `document_type`: `"AADHAAR"` *(options: `AADHAAR`, `PAN`, `DEGREE`, `EXPERIENCE_CERTIFICATE`)*
+  - `document_file`: `[File Attachment - PDF / JPG]`
+  - `notes`: `"Submitting IIT Delhi Ph.D degree and Aadhaar card."`
+- **Response Payload (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Verification documents uploaded successfully.",
+    "data": {
+      "id": "v-101",
+      "status": "PENDING",
+      "document_type": "AADHAAR"
+    }
+  }
+  ```
+
+#### 🔹 15. Teacher Batch Management (CRUD)
+- **List Batches**: `GET /api/v1/teacher/batches/`
+- **Create Batch**: `POST /api/v1/teacher/batches/`
+  ```json
+  {
+    "title": "Target JEE Advanced 2027: Master Class in Physics",
+    "subject": "Physics",
+    "target_exam": "IIT JEE Advanced",
+    "start_date": "2026-10-01",
+    "end_date": "2027-04-30",
+    "max_students": 30,
+    "price": "14999.00",
+    "is_published": true,
+    "schedule_description": "Mon, Wed, Fri: 6:00 PM - 7:30 PM IST"
+  }
+  ```
+- **Update Batch**: `PATCH /api/v1/teacher/batches/{id}/`
+- **Delete Batch**: `DELETE /api/v1/teacher/batches/{id}/`
+
+#### 🔹 16. Teacher Manage Enrollment Requests
+- **List Requests**: `GET /api/v1/teacher/enrollments/`
+- **Approve**: `POST /api/v1/teacher/enrollments/{id}/approve/`
+- **Reject**: `POST /api/v1/teacher/enrollments/{id}/reject/`
+
+---
+
+### 2.4 Marketplace, Discovery & Batches
+
+#### 🔹 17. Find a Teacher (Mobile Search & Subject Filters)
+- **URL**: `GET /api/v1/teachers/`
+- **Query Parameters**:
+  - `subject`: `Maths` | `Physics` | `Chemistry` | `Biology` (Subject filter chips)
+  - `search`: e.g. `Priya`, `Sharma` (Search by teacher name, subject, qualification)
+- **Headers**: *(Public, No token required)*
+- **Request Payload**: None *(GET request)*
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Data fetched successfully",
+    "total_count": 4,
+    "data": [
+      {
+        "id": "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
+        "name": "Dr. Priya Sharma",
+        "avatar_initial": "S",
+        "is_verified": true,
+        "qualification": "PhD — IIT Delhi",
+        "subjects": ["Mathematics"],
+        "teaching_languages": ["Hindi", "English"],
+        "total_students": 1200,
+        "average_rating": "4.90",
+        "hourly_rate": "1500.00",
+        "profile_photo": null
+      },
+      {
+        "id": "9b8c7d6e-5f4a-3210-fedc-ba9876543210",
+        "name": "Prof. Arjun Mehta",
+        "avatar_initial": "M",
+        "is_verified": true,
+        "qualification": "M.Sc — BITS Pilani",
+        "subjects": ["Physics"],
+        "teaching_languages": ["Hindi", "English"],
+        "total_students": 890,
+        "average_rating": "4.70",
+        "hourly_rate": "1200.00",
+        "profile_photo": null
+      },
+      {
+        "id": "1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
+        "name": "Ms. Sunita Patel",
+        "avatar_initial": "P",
+        "is_verified": true,
+        "qualification": "M.Sc — DU",
+        "subjects": ["Chemistry"],
+        "teaching_languages": ["Hindi", "Gujarati"],
+        "total_students": 640,
+        "average_rating": "4.80",
+        "hourly_rate": "1000.00",
+        "profile_photo": null
+      },
+      {
+        "id": "3d4e5f6a-7b8c-9d0e-1f2a-3b4c5d6e7f8a",
+        "name": "Mr. Rajesh Kumar",
+        "avatar_initial": "K",
+        "is_verified": true,
+        "qualification": "MBBS — AIIMS",
+        "subjects": ["Biology"],
+        "teaching_languages": ["Hindi", "English"],
+        "total_students": 520,
+        "average_rating": "4.60",
+        "hourly_rate": "1100.00",
+        "profile_photo": null
+      }
+    ]
+  }
+  ```
+
+#### 🔹 17.1 "Connect" Action (Send Connection Request from Teacher Card)
+- **URL**: `POST /api/v1/connections/`
+- **Headers**:
+  ```http
+  Authorization: Bearer <Student_JWT>
+  Content-Type: application/json
+  ```
+- **Request Payload**:
+  ```json
+  {
+    "teacher_id": "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
+    "message": "Hello, I want to connect for 1-on-1 coaching."
+  }
+  ```
+- **Response Payload (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Connection request submitted. Contact sharing remains hidden until approved.",
+    "data": {
+      "id": "d232e600-f533-4c70-b630-e1eafcd0c609",
+      "status": "STUDENT_APPROVED",
+      "student_approved": true,
+      "admin_approved": false,
+      "contact_unlocked": false,
+      "created_at": "2026-10-01T15:11:38Z"
+    }
+  }
+  ```
+  *(Note: Phone numbers and emails are strictly hidden).*
+
+#### 🔹 18. Teacher Public Profile & Batches
+- **Profile Detail**: `GET /api/v1/teachers/{id}/`
+- **Teacher Batches**: `GET /api/v1/teachers/{id}/batches/`
+- **Teacher Reviews**: `GET /api/v1/teachers/{id}/reviews/`
+
+#### 🔹 19. Public Batches Directory
+- **List Batches**: `GET /api/v1/batches/?subject=Physics`
+- **Batch Detail**: `GET /api/v1/batches/{id}/`
+- **Request Enrollment**: `POST /api/v1/batches/{id}/enroll/`
+  ```json
+  {
+    "notes": "Enrolling for JEE Advanced physics."
+  }
+  ```
+- **Batch Announcements**:
+  * **List Announcements**: `GET /api/v1/batches/{id}/announcements/`
+  * **Publish Batch Announcement (Teacher to All Batch Students)**: `POST /api/v1/teacher/batches/{id}/announcements/` (or `POST /api/v1/batches/{id}/announcements/`)
+    - **Headers**: `Authorization: Bearer <Teacher_JWT>`, `Content-Type: application/json`
+    - **Request Payload**:
+      ```json
+      {
+        "title": "Extra Physics Class Tomorrow",
+        "message": "Tomorrow at 10:00 AM we will solve previous year question papers. Attendance is mandatory for all students.",
+        "priority": "HIGH"
+      }
+      ```
+    - *(Note: Publishing an announcement automatically dispatches a `TEACHER_ANNOUNCEMENT` in-app notification to all active enrolled students in this batch).*
+
+#### 🔹 20. Public Promotional Banners (App Carousel)
+- **URL**: `GET /api/v1/banners/`
+- **Response Payload (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "b-1",
+        "title": "IIT JEE 2027 Admissions Open",
+        "image_url": "/media/banners/jee2027.jpg",
+        "target_url": "/batches/3c2b1a0f-9e8d-7c6b-5a4f-3e2d1c0b9a8f"
+      }
+    ]
+  }
+  ```
+
+---
+
+### 2.5 Classes, Attendance & Study Materials
+
+#### 🔹 21. Create Class (Zoom / Google Meet / YouTube / Recorded Video)
+- **URL**: `POST /api/v1/teacher/batches/{batch_id}/classes/`
+- **Headers**: `Authorization: Bearer <Teacher_JWT>`
+- **Request Payload**:
+  ```json
+  {
+    "title": "Session 01: Rotational Mechanics Fundamentals",
+    "description": "Moment of Inertia and Parallel Axis Theorem.",
+    "content_type": "GOOGLE_MEET",
+    "meeting_url": "https://meet.google.com/abc-defg-hij",
+    "scheduled_at": "2026-10-05T18:00:00+05:30",
+    "duration_minutes": 90
+  }
+  ```
+- **Response Payload (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "message": "Class scheduled successfully.",
+    "data": {
+      "id": "cls-101",
+      "title": "Session 01: Rotational Mechanics Fundamentals",
+      "content_type": "GOOGLE_MEET",
+      "meeting_url": "https://meet.google.com/abc-defg-hij"
+    }
+  }
+  ```
+
+#### 🔹 22. View Batch Classes & Single Class
+- **Batch Classes**: `GET /api/v1/batches/{batch_id}/classes/` *(Enrolled students & teacher only)*
+- **Class Detail**: `GET /api/v1/classes/{id}/`
+
+#### 🔹 23. Class Attendance
+- **View Attendance**: `GET /api/v1/classes/{class_id}/attendance/`
+- **Mark Attendance**: `POST /api/v1/classes/{class_id}/attendance/`
+  ```json
+  {
+    "student_id": "c1f3a2b4-7e89-4d12-9c34-89abcdef0123",
+    "status": "PRESENT"
+  }
+  ```
+
+#### 🔹 24. Study Materials Upload & Download
+- **Upload Material**: `POST /api/v1/teacher/batches/{batch_id}/materials/` (`multipart/form-data`)
+  - `title`: `"Formula Sheet: Electrostatics & Magnetism"`
+  - `material_type`: `"DOCUMENT"`
+  - `file`: `[PDF File]`
+  - `is_downloadable`: `true`
+- **Batch Materials**: `GET /api/v1/batches/{batch_id}/materials/`
+- **Download Material**: `GET /api/v1/materials/{id}/download/`
+- **Bookmark Material**: `POST|DELETE /api/v1/materials/{id}/bookmark/`
+
+---
+
+### 2.6 Connections, Messaging, Reviews & Payments
+
+#### 🔹 25. Privacy Connections & Contact Unlock
+- **Send Connection Request**: `POST /api/v1/connections/`
+  ```json
+  {
+    "teacher_id": "8a7b6c5d-4e3f-2a1b-0c9d-8e7f6a5b4c3d",
+    "message": "Hi Sir, looking for 1-on-1 coaching."
+  }
+  ```
+- **Approve Request**: `POST /api/v1/connections/{id}/approve/`
+- **Reject Request**: `POST /api/v1/connections/{id}/reject/`
+- **Secure Contact Unlock**: `GET /api/v1/connections/{id}/contact/`
+  ```json
+  {
+    "success": true,
+    "message": "Contact details unlocked securely.",
+    "data": {
+      "teacher_name": "Dr. Rajesh Sharma",
+      "phone": "+919876543210",
+      "email": "rajesh.sharma@tutoron.in"
+    }
+  }
+  ```
+
+#### 🔹 26. In-App Messaging / Chat (`/api/v1/conversations/`)
+- **List / Start Conversations**: `GET|POST /api/v1/conversations/`
+- **View Messages**: `GET /api/v1/conversations/{id}/`
+- **Send Message**: `POST /api/v1/conversations/{id}/messages/`
+  ```json
+  {
+    "content": "Sir, when is the next doubt-clearing session scheduled?"
+  }
+  ```
+- **Mark Message Read**: `POST /api/v1/messages/{id}/read/`
+
+#### 🔹 27. In-App Notifications (`/api/v1/notifications/`)
+Role-aware notification system for Students and Teachers. The backend automatically filters notifications for the logged-in user based on the Bearer JWT token.
+
+- **List Notifications**: `GET /api/v1/notifications/`
+  * **Headers**: `Authorization: Bearer <Student_or_Teacher_JWT>`
+  * **Response Payload (`200 OK`)**:
+    ```json
+    {
+      "success": true,
+      "message": "Notifications retrieved",
+      "data": {
+        "unread_count": 2,
+        "notifications": [
+          {
+            "id": "e6f8b91c-1342-4f76-8805-4c07a0c7e2b1",
+            "title": "New Batch Announcement: Target JEE 2027",
+            "message": "Tomorrow at 10:00 AM we will solve previous year question papers.",
+            "notification_type": "TEACHER_ANNOUNCEMENT",
+            "related_object_id": "announcement-uuid",
+            "is_read": false,
+            "created_at": "2026-10-05T15:45:00Z"
+          },
+          {
+            "id": "11a2b3c4-5d6e-7f8a-9b0c-1d2e3f4a5b6c",
+            "title": "Upcoming Class Reminder",
+            "message": "Physics Class starts in 15 minutes.",
+            "notification_type": "CLASS_REMINDER",
+            "related_object_id": "class-uuid",
+            "is_read": false,
+            "created_at": "2026-10-05T15:00:00Z"
+          }
+        ]
+      }
+    }
+    ```
+- **Mark Single Notification as Read**: `POST /api/v1/notifications/{id}/read/`
+- **Mark All Notifications as Read**: `POST /api/v1/notifications/read-all/`
+
+##### 🔔 Notification Types & Triggers Overview
+| Notification Type | Trigger Event (Kab trigger hoti hai?) | Target Recipient |
+| :--- | :--- | :--- |
+| `CLASS_REMINDER` | Live class start hone se pehle automated/cron reminder | Enrolled Students & Batch Teacher |
+| `TEACHER_ANNOUNCEMENT` | Teacher batch ke andar naya announcement/notice post karta hai | Us batch ke sabhi enrolled Students |
+| `ENROLLMENT_REQUEST` | Student batch admission ke liye request bhejta hai | Batch Teacher |
+| `ENROLLMENT_APPROVED` | Teacher ya Admin student ki admission request accept karta hai | Student |
+| `MATERIAL_UPLOADED` | Teacher batch ke andar naye Study Material/Notes upload karta hai | Us batch ke sabhi Students |
+| `CONNECTION_REQUEST` | Student teacher se 1-on-1 direct phone/contact connect request karta hai | Teacher |
+| `CONNECTION_APPROVED` | Teacher ya Admin contact unlock request accept karta hai | Student |
+| `NEW_MESSAGE` | Chat/Inbox me naya direct message receive hone par | Receiver (Student or Teacher) |
+| `PAYMENT_SUCCESS` | Batch fees payment successfully verify hone par | Student |
+| `PAYMENT_REMINDER` | Fees pending hone par payment reminder | Student |
+| `PAYMENT_FAILED` | Transaction fail hone par payment retry alert | Student |
+| `SYSTEM` | Admin verification approval, platform notice, ya account updates | Student / Teacher |
+
+#### 🔹 28. Reviews, Ratings & Incident Reports
+- **Submit Batch Review**: `POST /api/v1/batches/{batch_id}/reviews/`
+  ```json
+  {
+    "rating": 5,
+    "comment": "Outstanding teaching methodology!"
+  }
+  ```
+- **Submit Incident Report**: `POST /api/v1/reports/`
+  ```json
+  {
+    "target_type": "USER",
+    "target_id": "user-uuid-to-report",
+    "reason": "SPAM",
+    "description": "Sending unwanted promotional messages."
+  }
+  ```
+- **My Reports**: `GET /api/v1/reports/my/`
+
+#### 🔹 29. Payment Gateway & Checkout
+- **Initiate Payment**: `POST /api/v1/payments/initiate/`
+  ```json
+  {
+    "batch_id": "3c2b1a0f-9e8d-7c6b-5a4f-3e2d1c0b9a8f"
+  }
+  ```
+  *Response*:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "payment_id": "pay_xyz123",
+      "amount": "14999.00",
+      "currency": "INR",
+      "razorpay_order_id": "order_abc123"
+    }
+  }
+  ```
+- **Verify Payment**: `POST /api/v1/payments/verify/`
+  ```json
+  {
+    "payment_id": "pay_xyz123",
+    "razorpay_payment_id": "pay_98765",
+    "razorpay_signature": "signature_hash"
+  }
+  ```
+
+---

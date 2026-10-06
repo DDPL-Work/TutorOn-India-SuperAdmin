@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchStudents, deleteStudent } from '../../API/thunks/studentsThunks';
+import { fetchStudents, deleteStudent, deactivateStudent, activateStudent } from '../../API/thunks/studentsThunks';
 import {
   FiUsers,
   FiUserCheck,
@@ -98,16 +98,19 @@ export function StudentsList() {
   const isFiltered = searchTerm !== '' || statusFilter !== 'ALL' || boardFilter !== 'ALL';
   const activeFilterCount = (statusFilter !== 'ALL' ? 1 : 0) + (boardFilter !== 'ALL' ? 1 : 0);
 
-  // Status Toggle (Using Delete API for Inactive if no specific toggle exists, but keeping UI optimistic if it's just a soft toggle)
+  // Status Toggle (Deactivate / Activate Student Account)
   const handleStatusToggle = async (studentId, currentStatus) => {
-    if (currentStatus) { // if active, meaning we want to deactivate/delete
-      try {
-        await dispatch(deleteStudent(studentId)).unwrap();
-        toast.success('Student Deleted', `Student ${studentId} removed successfully.`);
-        dispatch(fetchStudents({ page: currentPage, page_size: pageSize, search: searchTerm }));
-      } catch (e) {
-        toast.error('Action Failed', e.toString());
+    try {
+      if (currentStatus) {
+        await dispatch(deactivateStudent(studentId)).unwrap();
+        toast.success('Student Deactivated', `Student account marked as inactive.`);
+      } else {
+        await dispatch(activateStudent(studentId)).unwrap();
+        toast.success('Student Activated', `Student account reactivated successfully.`);
       }
+      dispatch(fetchStudents({ page: currentPage, page_size: pageSize, search: searchTerm }));
+    } catch (e) {
+      toast.error('Action Failed', e?.toString() || 'Could not update student status');
     }
   };
 
@@ -224,14 +227,14 @@ export function StudentsList() {
             >
               Export
             </Button>
-            <Button
+            {/* <Button
               variant="primary"
               size="sm"
               leftIcon={<FiPlus className="w-3.5 h-3.5" />}
               onClick={() => setIsAddModalOpen(true)}
             >
               Add Student
-            </Button>
+            </Button> */}
           </>
         }
       />
@@ -288,7 +291,7 @@ export function StudentsList() {
         onReset={handleResetFilters}
         actions={
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+            {/* <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
               <span>Rows:</span>
               <select
                 value={pageSize}
@@ -302,7 +305,7 @@ export function StudentsList() {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
-            </div>
+            </div> */}
             <TableScrollButtons targetRef={tableRef} />
           </div>
         }

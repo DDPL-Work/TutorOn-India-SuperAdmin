@@ -11,6 +11,7 @@ import announcementsReducer from './slices/announcementsSlice';
 import reportsReducer from './slices/reportsSlice';
 import auditReducer from './slices/auditSlice';
 import teacherAnnouncementsReducer from './slices/teacherAnnouncementsSlice';
+import notificationsReducer from './slices/notificationsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -26,5 +27,6 @@ export const store = configureStore({
     reports: reportsReducer,
     audit: auditReducer,
     teacherAnnouncements: teacherAnnouncementsReducer,
+    notifications: notificationsReducer,
   },
 });

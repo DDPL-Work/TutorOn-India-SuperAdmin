@@ -47,6 +47,10 @@
   html {
     scroll-behavior: smooth;
   }
+  html.sidebar-open,
+  body.sidebar-open {
+    overflow: hidden !important;
+  }
 }
 
 .font-inter { font-family: 'Inter', sans-serif; }

@@ -787,7 +787,7 @@ export function StudyMaterials() {
         }}
         actions={
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+            {/* <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
               <span>Rows:</span>
               <select
                 value={pageSize}
@@ -801,7 +801,7 @@ export function StudyMaterials() {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
-            </div>
+            </div> */}
             <TableScrollButtons targetRef={tableRef} />
           </div>
         }
@@ -969,7 +969,7 @@ export function StudyMaterials() {
                     {detailModal.material.chaptersCount || 0} Chapters
                   </span>
                 </div>
-                <Button
+                {/* <Button
                   variant="outline"
                   size="sm"
                   onClick={handleAddChapter}
@@ -977,7 +977,7 @@ export function StudyMaterials() {
                   className="h-7 text-xs text-[#123B66] border-blue-200 hover:bg-blue-50"
                 >
                   Add Chapter
-                </Button>
+                </Button> */}
               </div>
 
               {/* Chapters List */}
@@ -1047,7 +1047,7 @@ export function StudyMaterials() {
                         </Button>
 
                         {/* Import / Replace Action Button */}
-                        <Button
+                        {/* <Button
                           variant="primary"
                           size="sm"
                           onClick={() => triggerChapterImport(chapter.id)}
@@ -1056,7 +1056,7 @@ export function StudyMaterials() {
                           title="Import a new PDF file to replace current chapter file"
                         >
                           Import
-                        </Button>
+                        </Button> */}
                       </div>
                     </div>
                   ))

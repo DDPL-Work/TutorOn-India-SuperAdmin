@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiMenu,
   FiSearch,
@@ -15,6 +16,7 @@ import {
 } from 'react-icons/fi';
 import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from './GlobalSearchModal';
+import NotificationSidebar from './NotificationSidebar';
 import Avatar from '../ui/Avatar';
 import Dropdown from '../ui/Dropdown';
 import Modal from '../ui/Modal';
@@ -22,81 +24,171 @@ import Button from '../ui/Button';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
+import {
+  fetchNotifications,
+  fetchAllNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from '../../API/thunks/notificationsThunks';
 
 export function Header({ onMobileMenuToggle }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
+  const dispatch = useDispatch();
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNotificationSidebarOpen, setIsNotificationSidebarOpen] = useState(false);
 
-  // 6 Specified Platform Notifications
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-1',
-      title: 'New teacher verification request',
-      message: 'Dr. Ramesh Chandra Gupta submitted credentials for Physics (Class XII).',
-      time: '10m ago',
-      unread: true,
-      path: '/teachers?tab=pending',
-    },
-    {
-      id: 'notif-2',
-      title: 'New connection approval request',
-      message: 'Aarav Sharma requested teacher contact disclosure for Batch B-102.',
-      time: '28m ago',
-      unread: true,
-      path: '/connections?tab=pending_admin',
-    },
-    {
-      id: 'notif-3',
-      title: 'New enrollment request',
-      message: 'Aarav Sharma applied for Advanced Electromagnetism & Modern Physics.',
-      time: '45m ago',
-      unread: true,
-      path: '/enrollments?tab=awaiting_confirmation',
-    },
-    {
-      id: 'notif-4',
-      title: 'New abuse report',
-      message: 'Urgent grievance filed: Privacy violation report REP-70011 requires audit.',
-      time: '1h ago',
-      unread: true,
-      path: '/reports/REP-70011',
-    },
-    {
-      id: 'notif-5',
-      title: 'Announcement published',
-      message: 'Diwali Academic Prep Flash Discount announcement is now live across app.',
-      time: '2h ago',
-      unread: false,
-      path: '/announcements-promotions/announcements',
-    },
-    {
-      id: 'notif-6',
-      title: 'Payment received',
-      message: '₹14,500 tuition fee received for enrollment ENR-50031 via UPI escrow.',
-      time: '3h ago',
-      unread: false,
-      path: '/payments/TXN-9928172635',
-    },
-  ]);
+  // Redux notifications state
+  const {
+    items: serverNotifications = [],
+    unreadCount: serverUnreadCount = 0,
+    allNotifications = [],
+    allUnreadCount = 0,
+    isLoading: isLoadingNotifications,
+  } = useSelector((state) => state.notifications || {});
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  // Fallback notifications if backend has zero records
+  const fallbackNotifications = useMemo(
+    () => [
+      {
+        id: 'notif-1',
+        title: 'New teacher verification request',
+        message: 'Dr. Ramesh Chandra Gupta submitted credentials for Physics (Class XII).',
+        time: '10m ago',
+        is_read: false,
+        path: '/teachers?tab=pending',
+      },
+      {
+        id: 'notif-2',
+        title: 'New connection approval request',
+        message: 'Aarav Sharma requested teacher contact disclosure for Batch B-102.',
+        time: '28m ago',
+        is_read: false,
+        path: '/connections?tab=pending_admin',
+      },
+      {
+        id: 'notif-3',
+        title: 'New enrollment request',
+        message: 'Aarav Sharma applied for Advanced Electromagnetism & Modern Physics.',
+        time: '45m ago',
+        is_read: false,
+        path: '/enrollments?tab=awaiting_confirmation',
+      },
+      {
+        id: 'notif-4',
+        title: 'New abuse report',
+        message: 'Urgent grievance filed: Privacy violation report REP-70011 requires audit.',
+        time: '1h ago',
+        is_read: false,
+        path: '/reports/REP-70011',
+      },
+      {
+        id: 'notif-5',
+        title: 'Announcement published',
+        message: 'Diwali Academic Prep Flash Discount announcement is now live across app.',
+        time: '2h ago',
+        is_read: true,
+        path: '/announcements-promotions/announcements',
+      },
+      {
+        id: 'notif-6',
+        title: 'Payment received',
+        message: '₹14,500 tuition fee received for enrollment ENR-50031 via UPI escrow.',
+        time: '3h ago',
+        is_read: true,
+        path: '/payments/TXN-9928172635',
+      },
+    ],
+    []
+  );
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-    toast.info('Notifications Updated', 'All platform notifications marked as read.');
+  // Fetch notifications on mount
+  useEffect(() => {
+    dispatch(fetchNotifications());
+    dispatch(fetchAllNotifications());
+  }, [dispatch]);
+
+  // Determine display notifications:
+  // 1. If personal inbox has items, use them
+  // 2. Otherwise if all platform notifications has items, use the top 6
+  // 3. Otherwise use curated fallbacks
+  const displayNotifications = useMemo(() => {
+    if (serverNotifications.length > 0) return serverNotifications;
+    if (allNotifications.length > 0) return allNotifications.slice(0, 6);
+    return fallbackNotifications;
+  }, [serverNotifications, allNotifications, fallbackNotifications]);
+
+  const effectiveUnreadCount = useMemo(() => {
+    if (serverNotifications.length > 0) return serverUnreadCount;
+    if (allNotifications.length > 0) return allUnreadCount;
+    return fallbackNotifications.filter((n) => !n.is_read).length;
+  }, [serverNotifications, serverUnreadCount, allNotifications, allUnreadCount, fallbackNotifications]);
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await dispatch(markAllNotificationsRead()).unwrap();
+      toast.info('Notifications Updated', 'All platform notifications marked as read.');
+    } catch {
+      toast.error('Action Failed', 'Could not mark all notifications as read.');
+    }
+  };
+
+  const getNotificationRoute = (item) => {
+    if (item.path) return item.path;
+    const type = (item.notification_type || '').toUpperCase();
+    const title = (item.title || '').toLowerCase();
+
+    if (type.includes('CONNECTION') || title.includes('connection')) {
+      return '/connections?tab=pending_admin';
+    }
+    if (type.includes('ENROLLMENT') || title.includes('enrollment')) {
+      return '/enrollments?tab=awaiting_confirmation';
+    }
+    if (type.includes('TEACHER') || type.includes('VERIF') || title.includes('teacher') || title.includes('verified')) {
+      return '/teachers?tab=pending';
+    }
+    if (type.includes('MESSAGE') || title.includes('message')) {
+      return '/dashboard';
+    }
+    if (type.includes('PAYMENT') || type.includes('FEE') || title.includes('fee') || title.includes('payment')) {
+      return '/payments';
+    }
+    if (type.includes('REPORT') || title.includes('report') || title.includes('abuse')) {
+      return '/reports';
+    }
+    if (type.includes('ANNOUNCEMENT') || title.includes('announcement')) {
+      return '/announcements-promotions/announcements';
+    }
+    return '/audit-logs';
+  };
+
+  const formatItemTime = (item) => {
+    if (item.time) return item.time;
+    if (!item.created_at) return 'Recently';
+    try {
+      const now = new Date();
+      const date = new Date(item.created_at);
+      const diffSec = Math.floor((now - date) / 1000);
+      if (diffSec < 60) return 'Just now';
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+      return `${Math.floor(diffSec / 86400)}d ago`;
+    } catch {
+      return 'Recently';
+    }
   };
 
   const handleNotificationClick = (item) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
-    );
-    navigate(item.path);
+    if (item.id && !item.is_read) {
+      dispatch(markNotificationRead(item.id));
+    }
+    const targetRoute = getNotificationRoute(item);
+    navigate(targetRoute);
   };
 
   const handleLogout = () => {
@@ -227,27 +319,27 @@ export function Header({ onMobileMenuToggle }) {
                 aria-label="Notifications"
               >
                 <FiBell className="w-4.5 h-4.5" />
-                {unreadCount > 0 && (
+                {effectiveUnreadCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-600 rounded-full ring-2 ring-white" />
                 )}
               </button>
             }
           >
-            {() => (
+            {(closeDropdown) => (
               <div className="text-xs">
                 <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900 font-geist">Platform Alerts</span>
-                    {unreadCount > 0 && (
+                    {effectiveUnreadCount > 0 && (
                       <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-700 font-bold">
-                        {unreadCount} new
+                        {effectiveUnreadCount} new
                       </span>
                     )}
                   </div>
-                  {unreadCount > 0 && (
+                  {effectiveUnreadCount > 0 && (
                     <button
                       type="button"
-                      onClick={markAllNotificationsRead}
+                      onClick={handleMarkAllNotificationsRead}
                       className="text-[11px] text-[#123B66] hover:underline font-medium cursor-pointer"
                     >
                       Mark all read
@@ -256,41 +348,60 @@ export function Header({ onMobileMenuToggle }) {
                 </div>
 
                 <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto divide-y divide-slate-100 scrollbar-thin">
-                  {notifications.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => handleNotificationClick(item)}
-                      className={`p-3 hover:bg-slate-50/80 transition-colors flex items-start gap-2.5 cursor-pointer ${
-                        item.unread ? 'bg-blue-50/30' : ''
-                      }`}
-                    >
-                      <div
-                        className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                          item.unread ? 'bg-[#1D4ED8]' : 'bg-transparent'
-                        }`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-800 leading-snug">{item.title}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                          {item.message}
-                        </p>
-                        <span className="text-[10px] font-mono text-slate-400 mt-1 block">
-                          {item.time}
-                        </span>
-                      </div>
+                  {isLoadingNotifications && displayNotifications.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#123B66] mx-auto mb-2"></div>
+                      <span className="text-[11px]">Loading notifications...</span>
                     </div>
-                  ))}
+                  ) : displayNotifications.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400">
+                      <FiBell className="w-5 h-5 mx-auto mb-1.5 opacity-40" />
+                      <span className="text-[11px]">No alerts right now</span>
+                    </div>
+                  ) : (
+                    displayNotifications.map((item) => {
+                      const isUnread = item.is_read !== undefined ? !item.is_read : item.unread;
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            if (typeof closeDropdown === 'function') closeDropdown();
+                            handleNotificationClick(item);
+                          }}
+                          className={`p-3 hover:bg-slate-50/80 transition-colors flex items-start gap-2.5 cursor-pointer ${
+                            isUnread ? 'bg-blue-50/30' : ''
+                          }`}
+                        >
+                          <div
+                            className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                              isUnread ? 'bg-[#1D4ED8]' : 'bg-transparent'
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-800 leading-snug">{item.title}</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed line-clamp-2">
+                              {item.message}
+                            </p>
+                            <span className="text-[10px] font-mono text-slate-400 mt-1 block">
+                              {formatItemTime(item)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
                 <div className="p-2.5 border-t border-slate-100 text-center bg-slate-50/30">
                   <button
                     type="button"
                     onClick={() => {
-                      navigate('/audit-logs');
+                      if (typeof closeDropdown === 'function') closeDropdown();
+                      setIsNotificationSidebarOpen(true);
                     }}
                     className="text-xs text-[#123B66] font-medium hover:underline cursor-pointer"
                   >
-                    View audit trail alerts
+                    View all notifications
                   </button>
                 </div>
               </div>
@@ -548,6 +659,12 @@ export function Header({ onMobileMenuToggle }) {
         confirmText="Sign Out"
         cancelText="Stay Signed In"
         variant="danger"
+      />
+
+      {/* Right-Side Platform Alerts & Audit Trail Sidebar Drawer */}
+      <NotificationSidebar
+        isOpen={isNotificationSidebarOpen}
+        onClose={() => setIsNotificationSidebarOpen(false)}
       />
     </>
   );

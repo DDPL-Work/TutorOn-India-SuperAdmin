@@ -7,9 +7,9 @@ import {
   FiCheckCircle,
   FiClock,
   FiAlertCircle,
-  FiDollarSign,
   FiEye,
 } from 'react-icons/fi';
+import { LiaRupeeSignSolid } from "react-icons/lia";
 import PageHeader from '../../components/ui/PageHeader';
 import FilterBar from '../../components/ui/FilterBar';
 import DataTable from '../../components/ui/DataTable';
@@ -174,7 +174,7 @@ export function PaymentsList() {
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Total Revenue (Sep 2026)</span>
-            <FiDollarSign className="w-4 h-4 text-emerald-600" />
+            <LiaRupeeSignSolid className="w-4.5 h-4.5 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold font-geist text-slate-900">
             ₹{totalRevenue.toLocaleString('en-IN')}
@@ -224,7 +224,7 @@ export function PaymentsList() {
         }}
         actions={
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
+            {/* <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
               <span>Rows:</span>
               <select
                 value={pageSize}
@@ -238,7 +238,7 @@ export function PaymentsList() {
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
-            </div>
+            </div> */}
             <TableScrollButtons targetRef={tableRef} />
           </div>
         }

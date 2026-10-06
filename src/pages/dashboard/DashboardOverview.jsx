@@ -289,11 +289,11 @@ export function DashboardOverview() {
               icon: <FiUserCheck className="text-emerald-600" />,
               onClick: () => navigate('/teachers?tab=pending'),
             },
-            {
-              label: 'Review Connection',
-              icon: <FiLink className="text-purple-600" />,
-              onClick: () => navigate('/connections?tab=pending_admin'),
-            },
+            // {
+            //   label: 'Review Connection',
+            //   icon: <FiLink className="text-purple-600" />,
+            //   onClick: () => navigate('/connections?tab=pending_admin'),
+            // },
             {
               label: 'Review Enrollment',
               icon: <FiBookOpen className="text-[#1D4ED8]" />,

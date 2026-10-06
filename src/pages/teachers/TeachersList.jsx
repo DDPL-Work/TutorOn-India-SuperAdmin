@@ -318,7 +318,7 @@ export function TeachersList({ defaultTab = null }) {
         actions={
           <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
-              <span>Rows:</span>
+              {/* <span>Rows:</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
@@ -330,7 +330,7 @@ export function TeachersList({ defaultTab = null }) {
                 <option value={5}>5</option>
                 <option value={10}>10</option>
                 <option value={20}>20</option>
-              </select>
+              </select> */}
             </div>
             <TableScrollButtons targetRef={tableRef} />
           </div>

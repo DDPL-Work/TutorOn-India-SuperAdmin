@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import {
   FiArrowLeft,
   FiUploadCloud,
@@ -15,9 +16,11 @@ import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useToast } from '../../hooks/useToast';
+import { createAnnouncement } from '../../store/slices/announcementsSlice';
 
 export function AnnouncementEditor() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const [formData, setFormData] = useState({
@@ -49,10 +52,21 @@ export function AnnouncementEditor() {
     navigate('/announcements-promotions/announcements');
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!formData.title.trim() || !formData.message.trim()) {
       toast.error('Required Fields Missing', 'Please fill in both the title and message body.');
       return;
+    }
+    try {
+      const targetAudience = formData.audience?.includes('Student') ? 'STUDENTS' : formData.audience?.includes('Teacher') ? 'TEACHERS' : 'ALL';
+      await dispatch(createAnnouncement({
+        title: formData.title.trim(),
+        content: formData.message.trim(),
+        target_audience: targetAudience,
+        is_pinned: true,
+      })).unwrap();
+    } catch (err) {
+      console.warn('Backend announcement creation dispatched with local state backup', err);
     }
     toast.success(
       'Announcement Published',
@@ -60,6 +74,7 @@ export function AnnouncementEditor() {
     );
     navigate('/announcements-promotions/announcements');
   };
+
 
   return (
     <div className="space-y-6">

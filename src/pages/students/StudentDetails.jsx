@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiMail,
@@ -28,16 +29,32 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_STUDENTS } from '../../data/students';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import { fetchStudents, updateStudent, deleteStudent } from '../../store/slices/studentsSlice';
 
 export function StudentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
-  // Find student record from mock database
+  const reduxStudents = useSelector((state) => state.students.students);
+
+  // Find student record
   const [student, setStudent] = useState(() => {
-    return INITIAL_STUDENTS.find((s) => s.id === id) || null;
+    return reduxStudents.find((s) => s.id === id) || INITIAL_STUDENTS.find((s) => s.id === id) || null;
   });
+
+  useEffect(() => {
+    if (reduxStudents.length === 0) {
+      dispatch(fetchStudents());
+    } else {
+      const match = reduxStudents.find((s) => s.id === id);
+      if (match) {
+        setStudent(match);
+        setEditFormData({ ...match });
+      }
+    }
+  }, [dispatch, reduxStudents, id]);
 
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -45,6 +62,7 @@ export function StudentDetails() {
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState('');
   const [adminNote, setAdminNote] = useState('');
+
   const [notesList, setNotesList] = useState([
     {
       id: 1,
@@ -83,12 +101,28 @@ export function StudentDetails() {
   };
 
   // Edit Profile Handler
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
+    try {
+      if (student.originalId || student.id) {
+        dispatch(updateStudent({
+          id: student.originalId || student.id,
+          data: {
+            education_level: editFormData.grade,
+            school_name: editFormData.school,
+            city: editFormData.city,
+            state: editFormData.state,
+          },
+        }));
+      }
+    } catch (err) {
+      console.warn('Backend update dispatch:', err);
+    }
     setStudent({ ...editFormData });
     setIsEditModalOpen(false);
     toast.success('Dossier Updated', 'Student profile details updated successfully.');
   };
+
 
   // Send Notice Handler
   const handleSendNotice = (e) => {

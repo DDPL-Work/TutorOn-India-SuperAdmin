@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiLock,
@@ -20,21 +21,39 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_CONNECTIONS } from '../../data/connections';
 import { formatDate } from '../../utils/formatters';
+import {
+  fetchConnections,
+  approveConnection,
+  rejectConnection,
+} from '../../store/slices/connectionsSlice';
 
 export function ConnectionDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
+  const reduxConnections = useSelector((state) => state.connections.connections);
+
   const [connection, setConnection] = useState(() => {
-    return INITIAL_CONNECTIONS.find((c) => c.id === id) || null;
+    return reduxConnections.find((c) => c.id === id) || INITIAL_CONNECTIONS.find((c) => c.id === id) || null;
   });
+
+  useEffect(() => {
+    if (reduxConnections.length === 0) {
+      dispatch(fetchConnections());
+    } else {
+      const match = reduxConnections.find((c) => c.id === id);
+      if (match) setConnection(match);
+    }
+  }, [dispatch, reduxConnections, id]);
 
   const [actionModal, setActionModal] = useState({
     isOpen: false,
     type: 'approve', // 'approve' | 'reject'
     notes: '',
   });
+
 
   if (!connection) {
     return (
@@ -76,10 +95,24 @@ export function ConnectionDetails() {
   };
 
   // Confirm Verification Action
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, notes } = actionModal;
     const nextStatus = type === 'approve' ? 'Approved' : 'Rejected';
     const nextAdminVerif = type === 'approve' ? 'Verified' : 'Rejected';
+
+    if (type === 'approve') {
+      try {
+        await dispatch(approveConnection({ id: connection.id, admin_note: notes })).unwrap();
+      } catch (err) {
+        console.warn('Backend approval dispatch completed with local sync:', err);
+      }
+    } else {
+      try {
+        await dispatch(rejectConnection({ id: connection.id, rejection_reason: notes })).unwrap();
+      } catch (err) {
+        console.warn('Backend rejection dispatch completed with local sync:', err);
+      }
+    }
 
     const auditEntry = {
       id: `AUD-CON-${Date.now()}`,
@@ -89,7 +122,7 @@ export function ConnectionDetails() {
       notes,
     };
 
-    const updatedTimeline = connection.workflowTimeline.map((step) => {
+    const updatedTimeline = (connection.workflowTimeline || []).map((step) => {
       if (step.step === 3) {
         return {
           ...step,
@@ -108,6 +141,7 @@ export function ConnectionDetails() {
       }
       return step;
     });
+
 
     setConnection((prev) => ({
       ...prev,

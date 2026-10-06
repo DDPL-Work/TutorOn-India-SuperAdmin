@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiShield,
@@ -9,12 +11,36 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
 import { INITIAL_AUDIT_LOGS } from '../../data/auditLogs';
+import { fetchAuditLogs, fetchAuditLogDetails } from '../../store/slices/auditLogsSlice';
 
 export function AuditLogDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-  const log = INITIAL_AUDIT_LOGS.find((l) => l.id === id) || null;
+  const { auditLogs: reduxAuditLogs } = useSelector((state) => state.auditLogs);
+
+  const [log, setLog] = useState(() => {
+    return INITIAL_AUDIT_LOGS.find((l) => l.id === id || l.originalId === id) || null;
+  });
+
+  useEffect(() => {
+    if (!reduxAuditLogs || reduxAuditLogs.length === 0) {
+      dispatch(fetchAuditLogs());
+    }
+  }, [dispatch, reduxAuditLogs]);
+
+  useEffect(() => {
+    if (id) {
+      dispatch(fetchAuditLogDetails(id)).unwrap().then((data) => {
+        if (data) setLog(data);
+      }).catch(() => {
+        // Fallback to list search
+        const match = reduxAuditLogs?.find((l) => l.id === id || l.originalId === id);
+        if (match) setLog(match);
+      });
+    }
+  }, [dispatch, id, reduxAuditLogs]);
 
   if (!log) {
     return (

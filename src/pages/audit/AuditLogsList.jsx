@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiShield,
   FiEye,
@@ -14,12 +15,26 @@ import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import { INITIAL_AUDIT_LOGS } from '../../data/auditLogs';
+import { fetchAuditLogs } from '../../store/slices/auditLogsSlice';
 
 export function AuditLogsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const { auditLogs: reduxAuditLogs, isLoading } = useSelector((state) => state.auditLogs);
 
   const tableRef = useRef(null);
-  const [auditLogs] = useState(INITIAL_AUDIT_LOGS);
+  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
+
+  useEffect(() => {
+    dispatch(fetchAuditLogs());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxAuditLogs && reduxAuditLogs.length > 0) {
+      setAuditLogs(reduxAuditLogs);
+    }
+  }, [reduxAuditLogs]);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
 

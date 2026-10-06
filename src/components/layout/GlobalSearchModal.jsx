@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiSearch,
   FiX,
@@ -22,12 +23,25 @@ import { INITIAL_ENROLLMENTS } from '../../data/enrollments';
 import { INITIAL_ANNOUNCEMENTS } from '../../data/announcements';
 import { INITIAL_REVIEWS } from '../../data/reviews';
 import { INITIAL_REPORTS } from '../../data/reports';
+import { searchGlobal } from '../../store/slices/dashboardSlice';
 
 export function GlobalSearchModal({ isOpen, onClose }) {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const inputRef = useRef(null);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const { searchResults: backendSearchResults } = useSelector((state) => state.dashboard);
+
+  useEffect(() => {
+    if (query.trim().length >= 2) {
+      const timer = setTimeout(() => {
+        dispatch(searchGlobal(query.trim()));
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [query, dispatch]);
 
   // Auto-focus input on open
   useEffect(() => {
@@ -206,8 +220,54 @@ export function GlobalSearchModal({ isOpen, onClose }) {
       }
     });
 
+    // Merge real server search results if available
+    if (backendSearchResults) {
+      if (Array.isArray(backendSearchResults.teachers)) {
+        backendSearchResults.teachers.forEach((t) => {
+          if (!results.teachers.some((x) => x.id === t.id)) {
+            results.teachers.push({
+              id: t.id,
+              title: t.name || t.display_name,
+              subtitle: t.subject || t.headline || 'Faculty',
+              extra: t.status || t.verification_status || 'VERIFIED',
+              url: `/teachers/${t.id}`,
+              type: 'teacher',
+            });
+          }
+        });
+      }
+      if (Array.isArray(backendSearchResults.students)) {
+        backendSearchResults.students.forEach((s) => {
+          if (!results.students.some((x) => x.id === s.id)) {
+            results.students.push({
+              id: s.id,
+              title: s.name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || s.email,
+              subtitle: s.grade_target || s.grade || 'Student',
+              extra: s.id,
+              url: `/students/${s.id}`,
+              type: 'student',
+            });
+          }
+        });
+      }
+      if (Array.isArray(backendSearchResults.batches)) {
+        backendSearchResults.batches.forEach((b) => {
+          if (!results.enrollments.some((x) => x.id === b.id)) {
+            results.enrollments.push({
+              id: b.id,
+              title: b.title,
+              subtitle: `Teacher: ${b.teacher || 'Assigned Faculty'}`,
+              extra: b.id,
+              url: `/enrollments/${b.id}`,
+              type: 'enrollment',
+            });
+          }
+        });
+      }
+    }
+
     return results;
-  }, [query]);
+  }, [query, backendSearchResults]);
 
   // Flattened array of all search matches for keyboard navigation
   const flatResults = useMemo(() => {
@@ -326,43 +386,43 @@ export function GlobalSearchModal({ isOpen, onClose }) {
                     label: 'Students Directory',
                     path: '/students',
                     icon: FiUsers,
-                    badge: '8,452',
+                    badge: 'Directory',
                   },
                   {
                     label: 'Teacher Verification',
                     path: '/teachers/pending',
                     icon: FiUserCheck,
-                    badge: '37 Pending',
+                    badge: 'Verification',
                   },
                   {
                     label: 'Pending Connections',
                     path: '/connections?tab=pending_admin',
                     icon: FiLink,
-                    badge: '24 Reviews',
+                    badge: 'Reviews',
                   },
                   {
                     label: 'Batch Enrollments',
                     path: '/enrollments?tab=awaiting_confirmation',
                     icon: FiBookOpen,
-                    badge: '18 Awaiting',
+                    badge: 'Batches',
                   },
                   {
                     label: 'Announcements & Promos',
                     path: '/announcements-promotions/announcements',
                     icon: FiSend,
-                    badge: '6 Active',
+                    badge: 'Broadcast',
                   },
                   {
                     label: 'Payments Escrow',
                     path: '/payments',
                     icon: FiCreditCard,
-                    badge: '',
+                    badge: 'Finance',
                   },
                   {
                     label: 'Safety Grievance Desk',
                     path: '/reports',
                     icon: FiAlertTriangle,
-                    badge: '4 Tickets',
+                    badge: 'Reports',
                   },
                 ].map((item, idx) => {
                   const Icon = item.icon;

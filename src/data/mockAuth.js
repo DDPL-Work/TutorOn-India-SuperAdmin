@@ -14,5 +14,6 @@ export const DEFAULT_SUPER_ADMIN = {
 
 export const DEMO_CREDENTIALS = {
   email: 'admin@tutoron.in',
-  password: 'Password@123',
+  password: 'Admin@12345',
 };
+

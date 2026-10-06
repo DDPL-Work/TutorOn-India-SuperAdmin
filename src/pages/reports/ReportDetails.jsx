@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiAlertTriangle,
@@ -16,15 +17,34 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_REPORTS } from '../../data/reports';
+import { fetchReports, resolveReport } from '../../store/slices/reportsSlice';
 
 export function ReportDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
+  const { reports: reduxReports } = useSelector((state) => state.reports);
+
   const [report, setReport] = useState(() => {
-    return INITIAL_REPORTS.find((r) => r.id === id) || null;
+    return INITIAL_REPORTS.find((r) => r.id === id || r.originalId === id) || null;
   });
+
+  useEffect(() => {
+    if (!reduxReports || reduxReports.length === 0) {
+      dispatch(fetchReports());
+    }
+  }, [dispatch, reduxReports]);
+
+  useEffect(() => {
+    if (reduxReports && reduxReports.length > 0) {
+      const match = reduxReports.find((r) => r.id === id || r.originalId === id);
+      if (match) {
+        setReport(match);
+      }
+    }
+  }, [reduxReports, id]);
 
   const [adminNotes, setAdminNotes] = useState(report?.adminNotes || '');
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
@@ -76,26 +96,37 @@ export function ReportDetails() {
   };
 
   // Handle Resolve
-  const handleResolve = () => {
-    const updatedTimeline = [
-      ...report.timeline,
-      {
-        action: 'Grievance Resolved by Super Admin',
-        timestamp: 'Today, Just now',
-        performedBy: 'Super Admin (sudhanshu@tutoron.in)',
-        notes: resolutionText,
-      },
-    ];
+  const handleResolve = async () => {
+    try {
+      const targetId = report.originalId || report.id;
+      await dispatch(resolveReport({
+        id: targetId,
+        resolution_action: 'CONTENT_REMOVED',
+        admin_notes: resolutionText,
+      })).unwrap();
 
-    setReport({
-      ...report,
-      status: 'Resolved',
-      resolution: resolutionText,
-      timeline: updatedTimeline,
-      adminNotes: adminNotes,
-    });
-    setResolveModalOpen(false);
-    toast.success('Report Resolved', `Case ${report.id} has been formally closed.`);
+      const updatedTimeline = [
+        ...report.timeline,
+        {
+          action: 'Grievance Resolved by Super Admin',
+          timestamp: 'Today, Just now',
+          performedBy: 'Super Admin (sudhanshu@tutoron.in)',
+          notes: resolutionText,
+        },
+      ];
+
+      setReport({
+        ...report,
+        status: 'Resolved',
+        resolution: resolutionText,
+        timeline: updatedTimeline,
+        adminNotes: adminNotes,
+      });
+      setResolveModalOpen(false);
+      toast.success('Report Resolved', `Case ${report.id} has been formally closed.`);
+    } catch (err) {
+      toast.error('Resolution Failed', err || 'Could not close ticket on server.');
+    }
   };
 
   // Handle Dismiss

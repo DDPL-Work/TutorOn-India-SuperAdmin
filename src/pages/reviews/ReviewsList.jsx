@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiStar,
   FiTrash2,
@@ -21,16 +22,30 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_REVIEWS } from '../../data/reviews';
+import { fetchReviews, removeReview } from '../../store/slices/reviewsSlice';
 
 export function ReviewsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const tableRef = useRef(null);
+  const reduxReviews = useSelector((state) => state.reviews.reviews);
   const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [ratingFilter, setRatingFilter] = useState('ALL');
+
+  useEffect(() => {
+    dispatch(fetchReviews());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxReviews && reduxReviews.length > 0) {
+      setReviews(reduxReviews);
+    }
+  }, [reduxReviews]);
+
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -130,9 +145,17 @@ export function ReviewsList() {
     });
   };
 
-  const handleConfirmRemove = () => {
+  const handleConfirmRemove = async () => {
     const { review, reason } = removeModal;
     if (!review) return;
+
+    try {
+      if (review.originalId || review.id) {
+        await dispatch(removeReview(review.originalId || review.id)).unwrap();
+      }
+    } catch (err) {
+      console.warn('Backend review removal dispatch:', err);
+    }
 
     const updated = reviews.map((r) => {
       if (r.id === review.id) {
@@ -153,6 +176,7 @@ export function ReviewsList() {
 
     toast.error('Review Removed', `Review ${review.id} has been hidden from public teacher profile.`);
   };
+
 
   // Helper for star rating
   const renderStars = (rating) => {

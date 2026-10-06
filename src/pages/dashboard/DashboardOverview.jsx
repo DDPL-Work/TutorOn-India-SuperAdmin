@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiUsers,
   FiUserCheck,
@@ -18,6 +19,7 @@ import {
   FiImage,
   FiChevronRight,
   FiArrowRight,
+  FiRadio,
 } from 'react-icons/fi';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -27,22 +29,50 @@ import Dropdown from '../../components/ui/Dropdown';
 import TableScrollButtons from '../../components/ui/TableScrollButtons';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/formatters';
+import {
+  fetchDashboardMetrics,
+  fetchDashboardActivity,
+  sendClassReminders,
+} from '../../store/slices/dashboardSlice';
+import {
+  fetchTeacherVerifications,
+  approveTeacherVerification,
+  rejectTeacherVerification,
+} from '../../store/slices/teachersSlice';
+import {
+  fetchConnections,
+  approveConnection,
+  rejectConnection,
+} from '../../store/slices/connectionsSlice';
 
 export function DashboardOverview() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const approvalsTableRef = useRef(null);
   const [activeChartRange, setActiveChartRange] = useState('30d');
   const [selectedApproval, setSelectedApproval] = useState(null);
 
+  // Redux state selectors
+  const metrics = useSelector((state) => state.dashboard.metrics);
+  const verifications = useSelector((state) => state.teachers.verifications);
+  const connections = useSelector((state) => state.connections.connections);
+
+  useEffect(() => {
+    dispatch(fetchDashboardMetrics());
+    dispatch(fetchDashboardActivity(activeChartRange));
+    dispatch(fetchTeacherVerifications());
+    dispatch(fetchConnections({ status: 'PENDING' }));
+  }, [dispatch, activeChartRange]);
+
   // Six Prompt-Specific KPI Cards
   const kpiMetrics = [
     {
       id: 'total_students',
       title: 'Total Students',
-      value: '8,452',
-      change: '+8.4% this month',
+      value: (metrics?.kpi_metrics?.total_students?.value ?? metrics?.summary?.total_students ?? 0).toLocaleString('en-IN'),
+      change: metrics?.kpi_metrics?.total_students?.label || '+0.0% this month',
       isPositive: true,
       icon: <FiUsers className="w-5 h-5 text-[#123B66]" />,
       badge: 'Learners',
@@ -51,8 +81,8 @@ export function DashboardOverview() {
     {
       id: 'total_teachers',
       title: 'Total Teachers',
-      value: '1,248',
-      change: '+5.2% this month',
+      value: (metrics?.kpi_metrics?.total_teachers?.value ?? metrics?.summary?.total_teachers ?? 0).toLocaleString('en-IN'),
+      change: metrics?.kpi_metrics?.total_teachers?.label || '+0.0% this month',
       isPositive: true,
       icon: <FiUserCheck className="w-5 h-5 text-emerald-600" />,
       badge: 'Faculty',
@@ -61,7 +91,7 @@ export function DashboardOverview() {
     {
       id: 'pending_verification',
       title: 'Pending Teacher Verification',
-      value: '37',
+      value: String(metrics?.kpi_metrics?.pending_verifications?.value ?? metrics?.pending_teacher_approvals ?? verifications.length ?? 0),
       change: 'Needs attention',
       isAlert: true,
       icon: <FiClock className="w-5 h-5 text-amber-600" />,
@@ -71,7 +101,7 @@ export function DashboardOverview() {
     {
       id: 'pending_connections',
       title: 'Pending Connections',
-      value: '24',
+      value: String(metrics?.kpi_metrics?.pending_connections?.value ?? connections.filter(c => c.status?.includes('Pending')).length ?? 0),
       change: 'Awaiting admin review',
       isAlert: true,
       icon: <FiLink className="w-5 h-5 text-purple-600" />,
@@ -81,7 +111,7 @@ export function DashboardOverview() {
     {
       id: 'pending_enrollments',
       title: 'Pending Enrollments',
-      value: '18',
+      value: String(metrics?.kpi_metrics?.pending_enrollments?.value ?? metrics?.total_enrollments ?? 0),
       change: 'Requires confirmation',
       isAlert: true,
       icon: <FiBookOpen className="w-5 h-5 text-[#1D4ED8]" />,
@@ -91,7 +121,7 @@ export function DashboardOverview() {
     {
       id: 'revenue',
       title: 'Revenue',
-      value: '₹4,85,240',
+      value: metrics?.kpi_metrics?.total_revenue?.value ? `₹${parseFloat(metrics.kpi_metrics.total_revenue.value).toLocaleString('en-IN')}` : '₹0',
       change: 'This month',
       isPositive: true,
       icon: <FiCreditCard className="w-5 h-5 text-emerald-700" />,
@@ -102,138 +132,135 @@ export function DashboardOverview() {
 
   // Secondary Snapshot Cards
   const platformSnapshots = [
-    { title: 'Active Students', value: '7,890', subtext: '93.3% engagement rate', icon: <FiUsers className="w-4 h-4 text-[#123B66]" />, path: '/students' },
-    { title: 'Verified Teachers', value: '1,185', subtext: '94.9% verification pass', icon: <FiUserCheck className="w-4 h-4 text-emerald-600" />, path: '/teachers/verified' },
-    { title: 'Active Batches', value: '342', subtext: 'Live across India', icon: <FiLayers className="w-4 h-4 text-[#1D4ED8]" />, path: '/enrollments' },
-    { title: 'Active Connections', value: '1,520', subtext: 'Protected communications', icon: <FiLink className="w-4 h-4 text-purple-600" />, path: '/connections' },
+    { title: 'Active Students', value: String(metrics?.secondary_metrics?.active_students ?? metrics?.summary?.total_students ?? 0), subtext: metrics?.secondary_metrics?.student_engagement_rate ? `${metrics.secondary_metrics.student_engagement_rate} engagement rate` : 'Engagement tracking', icon: <FiUsers className="w-4 h-4 text-[#123B66]" />, path: '/students' },
+    { title: 'Verified Teachers', value: String(metrics?.secondary_metrics?.verified_teachers ?? metrics?.summary?.verified_teachers ?? 0), subtext: metrics?.secondary_metrics?.teacher_verification_rate ? `${metrics.secondary_metrics.teacher_verification_rate} verification pass` : 'Verified educators', icon: <FiUserCheck className="w-4 h-4 text-emerald-600" />, path: '/teachers/verified' },
+    { title: 'Active Batches', value: String(metrics?.secondary_metrics?.active_batches ?? metrics?.active_batches ?? 0), subtext: 'Live across India', icon: <FiLayers className="w-4 h-4 text-[#1D4ED8]" />, path: '/enrollments' },
+    { title: 'Active Connections', value: String(metrics?.secondary_metrics?.unlocked_connections ?? 0), subtext: 'Protected communications', icon: <FiLink className="w-4 h-4 text-purple-600" />, path: '/connections' },
   ];
 
-  // Pending Approvals Queue
-  const [approvals, setApprovals] = useState([
-    {
-      id: 'APP-TCH-101',
-      type: 'Teacher Verification',
-      request: 'Dr. Ramesh Chandra Gupta (Physics · Class XII / JEE)',
-      submittedBy: 'dr.gupta.physics@gmail.com',
-      date: '2026-09-23T09:30:00Z',
-      status: 'Pending',
-      details: {
-        experience: '14 Years (Ex-Faculty, FIITJEE)',
-        degrees: 'Ph.D Physics (IIT Delhi), M.Sc Physics',
-        targetSubject: 'Physics & Advanced Mechanics',
-        phone: '+91 98765 43210',
-      },
-    },
-    {
-      id: 'APP-CON-204',
-      type: 'Connection Approval',
-      request: 'Aarav Malhotra requested contact for Dr. Ramesh Chandra Gupta',
-      submittedBy: 'Aarav Malhotra (Class XII PCM)',
-      date: '2026-09-23T08:15:00Z',
-      status: 'Pending',
-      details: {
-        reason: 'Parent requested 1-on-1 weekend consultation prior to batch payment.',
-        studentId: 'STU-10021',
-        teacherPhone: '+91 98765 43210',
-      },
-    },
-    {
-      id: 'APP-ENR-305',
-      type: 'Enrollment Confirmation',
-      request: 'Diya Patel requested seat in NEET Chemistry Rapid Batch',
-      submittedBy: 'Diya Patel (Ahmedabad)',
-      date: '2026-09-23T07:45:00Z',
-      status: 'Pending',
-      details: {
-        batchId: 'BAT-CHM-090',
-        fee: '₹14,000',
-        teacher: 'Prof. Arvind Nambiar',
-        seatNumber: 'Seat #24/25',
-      },
-    },
-    {
-      id: 'APP-TCH-102',
-      type: 'Teacher Verification',
-      request: 'Sunita Venkatesh (Mathematics · Class X & XII)',
-      submittedBy: 'sunita.maths@outlook.com',
-      date: '2026-09-22T18:20:00Z',
-      status: 'Pending',
-      details: {
-        experience: '9 Years (DU Gold Medalist, B.Ed)',
-        degrees: 'M.Sc Mathematics (Delhi University)',
-        targetSubject: 'Calculus, Geometry, Olympiads',
-        phone: '+91 94421 88902',
-      },
-    },
-    {
-      id: 'APP-CON-205',
-      type: 'Connection Approval',
-      request: 'Meera Deshmukh requested contact for Sunita Venkatesh',
-      submittedBy: 'Meera Deshmukh (Class X CBSE)',
-      date: '2026-09-22T16:10:00Z',
-      status: 'Pending',
-      details: {
-        reason: 'Inquiring about morning batch timings and doubt clearing sessions.',
-        studentId: 'STU-10022',
-        teacherPhone: '+91 94421 88902',
-      },
-    },
-  ]);
+  // Approvals Queue (Populated dynamically from backend verifications)
+  const [approvals, setApprovals] = useState([]);
+
+  // Sync with real backend verifications if loaded
+  useEffect(() => {
+    if (verifications && verifications.length > 0) {
+      const realVerifs = verifications.map((v) => ({
+        id: v.id,
+        realType: 'VERIFICATION',
+        type: 'Teacher Verification',
+        request: `${v.teacher_name || 'Faculty Member'} (${v.document_type || 'Identity & Degree Document'})`,
+        submittedBy: v.teacher_email || 'teacher@tutoron.in',
+        date: v.submitted_at || v.created_at || new Date().toISOString(),
+        status: v.status === 'APPROVED' ? 'Approved' : v.status === 'REJECTED' ? 'Rejected' : 'Pending',
+        details: {
+          documentType: v.document_type || 'Certificate',
+          phone: v.teacher_phone || '+91 ••••• •••••',
+          notes: v.notes || 'Submitted for administrative review.',
+        },
+      }));
+      setApprovals(realVerifs);
+    } else {
+      setApprovals([]);
+    }
+  }, [verifications]);
 
   // Recent Activity Feed
-  const recentActivities = [
-    {
-      id: 'act-1',
-      icon: <FiUserCheck className="w-4 h-4 text-[#123B66]" />,
-      description: 'Teacher profile submitted for verification by Dr. Ramesh Chandra Gupta',
-      timestamp: '15m ago',
-      category: 'Teacher',
-    },
-    {
-      id: 'act-2',
-      icon: <FiLink className="w-4 h-4 text-purple-600" />,
-      description: 'Connection request awaiting admin review: Aarav Malhotra → Dr. Ramesh Gupta',
-      timestamp: '42m ago',
-      category: 'Connection',
-    },
-    {
-      id: 'act-3',
-      icon: <FiBookOpen className="w-4 h-4 text-[#1D4ED8]" />,
-      description: 'Student requested batch enrollment: Diya Patel → NEET Chemistry Batch',
-      timestamp: '1h ago',
-      category: 'Enrollment',
-    },
-    {
-      id: 'act-4',
-      icon: <FiStar className="w-4 h-4 text-amber-500" />,
-      description: 'New review reported for moderation: "Inappropriate review on Physics Batch B-101"',
-      timestamp: '2h ago',
-      category: 'Review',
-    },
-    {
-      id: 'act-5',
-      icon: <FiBell className="w-4 h-4 text-emerald-600" />,
-      description: 'New enrollment request confirmed: Kabir Mehta enrolled in ICSE English Literature',
-      timestamp: '3h ago',
-      category: 'Enrollment',
-    },
-  ];
+  const recentActivities = useMemo(() => {
+    if (metrics?.recent_activity && metrics.recent_activity.length > 0) {
+      return metrics.recent_activity.slice(0, 6).map((item) => {
+        let icon = <FiBell className="w-4 h-4 text-emerald-600" />;
+        let category = 'Activity';
+        if (item.action?.includes('Teacher')) {
+          icon = <FiUserCheck className="w-4 h-4 text-[#123B66]" />;
+          category = 'Teacher';
+        } else if (item.action?.includes('Connection')) {
+          icon = <FiLink className="w-4 h-4 text-purple-600" />;
+          category = 'Connection';
+        } else if (item.action?.includes('Enrollment')) {
+          icon = <FiBookOpen className="w-4 h-4 text-[#1D4ED8]" />;
+          category = 'Enrollment';
+        } else if (item.action?.includes('Review')) {
+          icon = <FiStar className="w-4 h-4 text-amber-500" />;
+          category = 'Review';
+        } else if (item.action?.includes('Banner') || item.action?.includes('Announcement')) {
+          icon = <FiSend className="w-4 h-4 text-blue-600" />;
+          category = 'Marketing';
+        }
+
+        return {
+          id: item.id,
+          icon,
+          description: item.description ? `${item.action} — ${item.description}` : item.action,
+          timestamp: item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent',
+          category,
+        };
+      });
+    }
+
+    return [];
+  }, [metrics]);
+
 
   // Approval Handlers
-  const handleApprove = (approvalId) => {
+  const handleApprove = async (approvalId) => {
+    const item = approvals.find((a) => a.id === approvalId);
+    if (item?.realType === 'VERIFICATION') {
+      try {
+        await dispatch(approveTeacherVerification({ id: item.id, admin_notes: 'Approved via Super Admin Dashboard' })).unwrap();
+        toast.success('Verification Approved', `Teacher verification approved.`);
+      } catch (err) {
+        toast.error('Approval Failed', err || 'Could not approve verification');
+      }
+    } else if (item?.realType === 'CONNECTION') {
+      try {
+        await dispatch(approveConnection({ id: item.id, admin_note: 'Approved via Super Admin Dashboard' })).unwrap();
+        toast.success('Connection Approved', `Connection approved and contact details unlocked.`);
+      } catch (err) {
+        toast.error('Approval Failed', err || 'Could not approve connection');
+      }
+    } else {
+      toast.success('Request Approved', `Approval ${approvalId} confirmed.`);
+    }
+
     setApprovals((prev) =>
       prev.map((a) => (a.id === approvalId ? { ...a, status: 'Approved' } : a))
     );
     setSelectedApproval(null);
-    toast.success('Request Approved', `Approval ${approvalId} confirmed.`);
   };
 
-  const handleReject = (approvalId) => {
+  const handleReject = async (approvalId) => {
+    const item = approvals.find((a) => a.id === approvalId);
+    if (item?.realType === 'VERIFICATION') {
+      try {
+        await dispatch(rejectTeacherVerification({ id: item.id, rejection_reason: 'Rejected via Super Admin Dashboard' })).unwrap();
+        toast.success('Verification Rejected', `Teacher verification has been declined.`);
+      } catch (err) {
+        toast.error('Rejection Failed', err || 'Could not reject verification');
+      }
+    } else if (item?.realType === 'CONNECTION') {
+      try {
+        await dispatch(rejectConnection({ id: item.id, rejection_reason: 'Rejected via Super Admin Dashboard' })).unwrap();
+        toast.success('Connection Rejected', `Connection has been declined.`);
+      } catch (err) {
+        toast.error('Rejection Failed', err || 'Could not reject connection');
+      }
+    } else {
+      toast.error('Request Rejected', `Approval ${approvalId} has been declined.`);
+    }
+
     setApprovals((prev) =>
       prev.map((a) => (a.id === approvalId ? { ...a, status: 'Rejected' } : a))
     );
     setSelectedApproval(null);
-    toast.error('Request Rejected', `Approval ${approvalId} has been declined.`);
+  };
+
+  const handleDispatchReminders = async () => {
+    try {
+      const res = await dispatch(sendClassReminders({ window_minutes: 60 })).unwrap();
+      toast.success('Celery Dispatch Queued', res?.message || 'Scheduled class reminders dispatched via Celery worker.');
+    } catch (err) {
+      toast.error('Dispatch Failed', err || 'Failed to dispatch class reminders.');
+    }
   };
 
   return (
@@ -252,7 +279,7 @@ export function DashboardOverview() {
         {/* Quick Action Button Dropdown */}
         <Dropdown
           align="right"
-          width="w-56"
+          width="w-64"
           trigger={
             <Button
               variant="primary"
@@ -288,9 +315,15 @@ export function DashboardOverview() {
               icon: <FiImage className="text-amber-600" />,
               onClick: () => navigate('/announcements-promotions/banners'),
             },
+            {
+              label: 'Dispatch Class Reminders (Celery)',
+              icon: <FiClock className="text-indigo-600" />,
+              onClick: handleDispatchReminders,
+            },
           ]}
         />
       </div>
+
 
       {/* Greeting Banner */}
       <div className="p-4 sm:p-5 bg-linear-to-r from-[#0B1F3A] to-[#123B66] text-white rounded-xl shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#0B1F3A]">
@@ -570,88 +603,96 @@ export function DashboardOverview() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {approvals.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
-                    onClick={() => setSelectedApproval(item)}
-                  >
-                    {/* Type & ID */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="font-semibold text-slate-800 text-[11px] block">
-                        {item.type}
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 inline-block mt-0.5">
-                        {item.id}
-                      </span>
-                    </td>
-
-                    {/* Request Details */}
-                    <td className="py-3.5 px-4">
-                      <p className="font-medium text-slate-900 text-[11px] leading-tight line-clamp-2 max-w-[200px]">
-                        {item.request}
-                      </p>
-                    </td>
-
-                    {/* Submitted By */}
-                    <td className="py-3.5 px-4 text-slate-600 text-[11px] whitespace-nowrap">
-                      <span className="truncate max-w-[140px] block" title={item.submittedBy}>
-                        {item.submittedBy}
-                      </span>
-                    </td>
-
-                    {/* Date */}
-                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
-                      {formatDate(item.date)}
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <StatusBadge status={item.status} />
-                    </td>
-
-                    {/* Actions */}
-                    <td
-                      className="py-3.5 px-4 text-right whitespace-nowrap"
-                      onClick={(e) => e.stopPropagation()}
+                {approvals.length > 0 ? (
+                  approvals.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                      onClick={() => setSelectedApproval(item)}
                     >
-                      <div className="flex items-center justify-end gap-1.5">
-                        {item.status === 'Pending' && (
-                          <div className="flex items-center gap-1 mr-1">
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(item.id)}
-                              className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
-                              title="Approve"
-                              aria-label="Approve"
-                            >
-                              <FiCheck className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleReject(item.id)}
-                              className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
-                              title="Reject"
-                              aria-label="Reject"
-                            >
-                              <FiX className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                      {/* Type & ID */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="font-semibold text-slate-800 text-[11px] block">
+                          {item.type}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 inline-block mt-0.5">
+                          {item.id}
+                        </span>
+                      </td>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedApproval(item)}
-                          leftIcon={<FiEye className="w-3.5 h-3.5" />}
-                          className="h-7 text-xs px-2"
-                        >
-                          View
-                        </Button>
-                      </div>
+                      {/* Request Details */}
+                      <td className="py-3.5 px-4">
+                        <p className="font-medium text-slate-900 text-[11px] leading-tight line-clamp-2 max-w-[200px]">
+                          {item.request}
+                        </p>
+                      </td>
+
+                      {/* Submitted By */}
+                      <td className="py-3.5 px-4 text-slate-600 text-[11px] whitespace-nowrap">
+                        <span className="truncate max-w-[140px] block" title={item.submittedBy}>
+                          {item.submittedBy}
+                        </span>
+                      </td>
+
+                      {/* Date */}
+                      <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                        {formatDate(item.date)}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <StatusBadge status={item.status} />
+                      </td>
+
+                      {/* Actions */}
+                      <td
+                        className="py-3.5 px-4 text-right whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          {item.status === 'Pending' && (
+                            <div className="flex items-center gap-1 mr-1">
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(item.id)}
+                                className="w-7 h-7 rounded-full text-emerald-600 hover:bg-emerald-50 border border-emerald-200 flex items-center justify-center transition-colors cursor-pointer"
+                                title="Approve"
+                                aria-label="Approve"
+                              >
+                                <FiCheck className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleReject(item.id)}
+                                className="w-7 h-7 rounded-full text-danger hover:bg-red-50 border border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+                                title="Reject"
+                                aria-label="Reject"
+                              >
+                                <FiX className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedApproval(item)}
+                            leftIcon={<FiEye className="w-3.5 h-3.5" />}
+                            className="h-7 text-xs px-2"
+                          >
+                            View
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                      No pending approvals in queue.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -681,27 +722,33 @@ export function DashboardOverview() {
           </div>
 
           <div className="space-y-4 flex-1">
-            {recentActivities.map((act) => (
-              <div key={act.id} className="flex items-start gap-3 text-xs">
-                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5 border border-slate-200">
-                  {act.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-800 leading-snug">
-                    {act.description}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {act.timestamp}
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {act.category}
-                    </span>
+            {recentActivities.length > 0 ? (
+              recentActivities.map((act) => (
+                <div key={act.id} className="flex items-start gap-3 text-xs">
+                  <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5 border border-slate-200">
+                    {act.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-800 leading-snug">
+                      {act.description}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {act.timestamp}
+                      </span>
+                      <span className="w-1 h-1 rounded-full bg-slate-300" />
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {act.category}
+                      </span>
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No recent activity logged.
               </div>
-            ))}
+            )}
           </div>
 
           <div className="pt-3 border-t border-slate-100 mt-2">

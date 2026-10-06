@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiCheckCircle,
@@ -19,19 +20,33 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_ENROLLMENTS } from '../../data/enrollments';
+import { fetchEnrollments } from '../../store/slices/enrollmentsSlice';
 
 export function EnrollmentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
+  const reduxEnrollments = useSelector((state) => state.enrollments.enrollments);
+
   const [enrollment, setEnrollment] = useState(() => {
-    return INITIAL_ENROLLMENTS.find((e) => e.id === id) || null;
+    return reduxEnrollments.find((e) => e.id === id) || INITIAL_ENROLLMENTS.find((e) => e.id === id) || null;
   });
+
+  useEffect(() => {
+    if (reduxEnrollments.length === 0) {
+      dispatch(fetchEnrollments());
+    } else {
+      const match = reduxEnrollments.find((e) => e.id === id);
+      if (match) setEnrollment(match);
+    }
+  }, [dispatch, reduxEnrollments, id]);
 
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('Batch Capacity Exceeded');
+
 
   if (!enrollment) {
     return (

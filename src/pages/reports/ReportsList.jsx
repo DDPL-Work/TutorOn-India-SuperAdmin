@@ -1,9 +1,11 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiAlertTriangle,
   FiEye,
   FiX,
+  FiRefreshCw,
 } from 'react-icons/fi';
 import PageHeader from '../../components/ui/PageHeader';
 import FilterBar from '../../components/ui/FilterBar';
@@ -18,13 +20,27 @@ import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_REPORTS } from '../../data/reports';
+import { fetchReports, resolveReport } from '../../store/slices/reportsSlice';
 
 export function ReportsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
+
+  const { reports: reduxReports, isLoading } = useSelector((state) => state.reports);
 
   const tableRef = useRef(null);
   const [reports, setReports] = useState(INITIAL_REPORTS);
+
+  useEffect(() => {
+    dispatch(fetchReports());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxReports && reduxReports.length > 0) {
+      setReports(reduxReports);
+    }
+  }, [reduxReports]);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -96,20 +112,31 @@ export function ReportsList() {
   }, [filteredReports, currentPage, pageSize]);
 
   // Quick Resolve Action
-  const handleQuickResolve = (item, e) => {
+  const handleQuickResolve = async (item, e) => {
     e.stopPropagation();
-    const updated = reports.map((r) => {
-      if (r.id === item.id) {
-        return {
-          ...r,
-          status: 'Resolved',
-          resolution: 'Quick resolved by Super Admin.',
-        };
+    try {
+      if (item.originalId) {
+        await dispatch(resolveReport({
+          id: item.originalId,
+          resolution_action: 'CONTENT_REMOVED',
+          admin_notes: 'Quick resolved by Super Admin.',
+        })).unwrap();
       }
-      return r;
-    });
-    setReports(updated);
-    toast.success('Report Resolved', `Grievance ticket ${item.id} marked as resolved.`);
+      const updated = reports.map((r) => {
+        if (r.id === item.id) {
+          return {
+            ...r,
+            status: 'Resolved',
+            resolution: 'Quick resolved by Super Admin.',
+          };
+        }
+        return r;
+      });
+      setReports(updated);
+      toast.success('Report Resolved', `Grievance ticket ${item.id} marked as resolved.`);
+    } catch (err) {
+      toast.error('Action Failed', err || 'Could not resolve ticket on server.');
+    }
   };
 
   // Columns definition

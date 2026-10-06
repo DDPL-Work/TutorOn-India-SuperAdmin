@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiSend,
   FiPlus,
@@ -23,17 +24,31 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_ANNOUNCEMENTS } from '../../data/announcements';
+import { fetchAnnouncements } from '../../store/slices/announcementsSlice';
 
 export function AnnouncementsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const tableRef = useRef(null);
+  const reduxAnnouncements = useSelector((state) => state.announcements.announcements);
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [audienceFilter, setAudienceFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
+
+  useEffect(() => {
+    dispatch(fetchAnnouncements());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxAnnouncements && reduxAnnouncements.length > 0) {
+      setAnnouncements(reduxAnnouncements);
+    }
+  }, [reduxAnnouncements]);
+
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);

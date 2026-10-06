@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiCreditCard,
@@ -21,10 +22,12 @@ import Modal from '../../components/ui/Modal';
 import InvoiceTemplate from '../../components/payments/InvoiceTemplate';
 import { downloadInvoicePdf, printInvoiceWindow } from '../../utils/invoicePdf';
 import { INITIAL_PAYMENTS } from '../../data/payments';
+import { fetchPayments } from '../../store/slices/paymentsSlice';
 
 export function PaymentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -32,7 +35,16 @@ export function PaymentDetails() {
 
   const modalInvoiceRef = useRef(null);
 
-  const payment = INITIAL_PAYMENTS.find((p) => p.id === id) || null;
+  const reduxPayments = useSelector((state) => state.payments.payments);
+
+  useEffect(() => {
+    if (reduxPayments.length === 0) {
+      dispatch(fetchPayments());
+    }
+  }, [dispatch, reduxPayments]);
+
+  const payment = reduxPayments.find((p) => p.id === id) || INITIAL_PAYMENTS.find((p) => p.id === id) || null;
+
 
   const copyToClipboard = (text, key) => {
     navigator.clipboard.writeText(text);

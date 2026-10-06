@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
   FiUsers,
   FiUserCheck,
@@ -13,58 +14,75 @@ import {
   FiXCircle,
   FiPhone,
   FiMail,
-} from 'react-icons/fi';
-import PageHeader from '../../components/ui/PageHeader';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import Select from '../../components/ui/Select';
-import SearchBar from '../../components/ui/SearchBar';
-import FilterBar from '../../components/ui/FilterBar';
-import TableScrollButtons from '../../components/ui/TableScrollButtons';
-import StatusBadge from '../../components/ui/StatusBadge';
-import Badge from '../../components/ui/Badge';
-import Avatar from '../../components/ui/Avatar';
-import Pagination from '../../components/ui/Pagination';
-import Modal from '../../components/ui/Modal';
-import Dropdown from '../../components/ui/Dropdown';
-import { useToast } from '../../hooks/useToast';
-import { INITIAL_STUDENTS } from '../../data/students';
-import { formatDate } from '../../utils/formatters';
+} from "react-icons/fi";
+import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Select from "../../components/ui/Select";
+import SearchBar from "../../components/ui/SearchBar";
+import FilterBar from "../../components/ui/FilterBar";
+import TableScrollButtons from "../../components/ui/TableScrollButtons";
+import StatusBadge from "../../components/ui/StatusBadge";
+import Badge from "../../components/ui/Badge";
+import Avatar from "../../components/ui/Avatar";
+import Pagination from "../../components/ui/Pagination";
+import Modal from "../../components/ui/Modal";
+import Dropdown from "../../components/ui/Dropdown";
+import { useToast } from "../../hooks/useToast";
+import { INITIAL_STUDENTS } from "../../data/students";
+import { formatDate } from "../../utils/formatters";
+import {
+  fetchStudents,
+  createStudent,
+  deleteStudent,
+} from "../../store/slices/studentsSlice";
 
 export function StudentsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const tableRef = useRef(null);
+  const reduxStudents = useSelector((state) => state.students.students);
   const [students, setStudents] = useState(INITIAL_STUDENTS);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [boardFilter, setBoardFilter] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [boardFilter, setBoardFilter] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    dispatch(fetchStudents());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxStudents && reduxStudents.length > 0) {
+      setStudents(reduxStudents);
+    }
+  }, [reduxStudents]);
 
   // Add Student Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    grade: 'Class XII (PCM)',
-    board: 'CBSE',
-    school: '',
-    city: '',
-    state: '',
-    guardianName: '',
-    guardianPhone: '',
-    status: 'Active',
+    name: "",
+    email: "",
+    phone: "",
+    grade: "Class XII (PCM)",
+    board: "CBSE",
+    school: "",
+    city: "",
+    state: "",
+    guardianName: "",
+    guardianPhone: "",
+    status: "Active",
   });
 
   // Summary Metrics
   const summaryMetrics = useMemo(() => {
-    const total = 8452; // Matching exact prompt KPI
-    const active = students.filter((s) => s.status === 'Active').length;
-    const pending = students.filter((s) => s.status === 'Pending').length;
-    const inactive = students.filter((s) => s.status === 'Inactive').length;
+    const total = students.length;
+    const active = students.filter((s) => s.status === "Active").length;
+    const pending = students.filter((s) => s.status === "Pending").length;
+    const inactive = students.filter((s) => s.status === "Inactive").length;
     return { total, active, pending, inactive };
   }, [students]);
 
@@ -83,10 +101,12 @@ export function StudentsList() {
 
       // Status match
       const matchesStatus =
-        statusFilter === 'ALL' || student.status.toLowerCase() === statusFilter.toLowerCase();
+        statusFilter === "ALL" ||
+        student.status.toLowerCase() === statusFilter.toLowerCase();
 
       // Board match
-      const matchesBoard = boardFilter === 'ALL' || student.board === boardFilter;
+      const matchesBoard =
+        boardFilter === "ALL" || student.board === boardFilter;
 
       return matchesSearch && matchesStatus && matchesBoard;
     });
@@ -101,24 +121,26 @@ export function StudentsList() {
 
   // Reset filters
   const handleResetFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('ALL');
-    setBoardFilter('ALL');
+    setSearchTerm("");
+    setStatusFilter("ALL");
+    setBoardFilter("ALL");
     setCurrentPage(1);
   };
 
-  const isFiltered = searchTerm !== '' || statusFilter !== 'ALL' || boardFilter !== 'ALL';
-  const activeFilterCount = (statusFilter !== 'ALL' ? 1 : 0) + (boardFilter !== 'ALL' ? 1 : 0);
+  const isFiltered =
+    searchTerm !== "" || statusFilter !== "ALL" || boardFilter !== "ALL";
+  const activeFilterCount =
+    (statusFilter !== "ALL" ? 1 : 0) + (boardFilter !== "ALL" ? 1 : 0);
 
   // Status Toggle
   const handleStatusToggle = (studentId, currentStatus) => {
-    const nextStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    const nextStatus = currentStatus === "Active" ? "Inactive" : "Active";
     setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status: nextStatus } : s))
+      prev.map((s) => (s.id === studentId ? { ...s, status: nextStatus } : s)),
     );
     toast.success(
-      'Student Status Updated',
-      `Student ${studentId} marked as ${nextStatus}.`
+      "Student Status Updated",
+      `Student ${studentId} marked as ${nextStatus}.`,
     );
   };
 
@@ -127,7 +149,10 @@ export function StudentsList() {
     e.preventDefault();
 
     if (!newStudent.name || !newStudent.email || !newStudent.phone) {
-      toast.error('Required Fields Missing', 'Please provide student name, email, and phone.');
+      toast.error(
+        "Required Fields Missing",
+        "Please provide student name, email, and phone.",
+      );
       return;
     }
 
@@ -135,60 +160,91 @@ export function StudentsList() {
     const createdStudent = {
       id: nextId,
       ...newStudent,
-      joinedDate: new Date().toISOString().split('T')[0],
+      joinedDate: new Date().toISOString().split("T")[0],
       enrollmentsCount: 0,
       avatar: null,
       accountDetails: {
-        kycStatus: 'Verified',
+        kycStatus: "Verified",
         totalHoursLearned: 0,
         lastLogin: new Date().toISOString(),
         loginCount: 1,
-        accountStanding: 'Good Standing',
+        accountStanding: "Good Standing",
       },
       enrollmentHistory: [],
       connectionHistory: [],
       activityLog: [
         {
           id: `ACT-${Date.now()}`,
-          type: 'account_created',
-          description: 'Student account registered by Super Admin',
+          type: "account_created",
+          description: "Student account registered by Super Admin",
           timestamp: new Date().toISOString(),
         },
       ],
       reports: {
-        attendanceRate: '-',
-        homeworkSubmissionRate: '-',
-        academicRankInBatches: 'New Student',
-        adminRemarks: 'Account created via Super Admin terminal.',
+        attendanceRate: "-",
+        homeworkSubmissionRate: "-",
+        academicRankInBatches: "New Student",
+        adminRemarks: "Account created via Super Admin terminal.",
       },
     };
+
+    try {
+      const nameParts = newStudent.name.trim().split(" ");
+      const firstName = nameParts[0] || "Student";
+      const lastName = nameParts.slice(1).join(" ") || "";
+      dispatch(
+        createStudent({
+          first_name: firstName,
+          last_name: lastName,
+          email: newStudent.email,
+          phone_number: newStudent.phone,
+          education_level: newStudent.grade,
+          school_name: newStudent.school,
+          city: newStudent.city,
+          state: newStudent.state,
+        }),
+      );
+    } catch (err) {
+      console.warn("Backend student dispatch error:", err);
+    }
 
     setStudents((prev) => [createdStudent, ...prev]);
     setIsAddModalOpen(false);
     toast.success(
-      'Student Registered',
-      `${createdStudent.name} (${createdStudent.id}) has been added to TutorOn India.`
+      "Student Registered",
+      `${createdStudent.name} (${createdStudent.id}) has been added to TutorOn India.`,
     );
 
     // Reset modal form
     setNewStudent({
-      name: '',
-      email: '',
-      phone: '',
-      grade: 'Class XII (PCM)',
-      board: 'CBSE',
-      school: '',
-      city: '',
-      state: '',
-      guardianName: '',
-      guardianPhone: '',
-      status: 'Active',
+      name: "",
+      email: "",
+      phone: "",
+      grade: "Class XII (PCM)",
+      board: "CBSE",
+      school: "",
+      city: "",
+      state: "",
+      guardianName: "",
+      guardianPhone: "",
+      status: "Active",
     });
   };
 
   // Export CSV Handler
   const handleExportCSV = () => {
-    const headers = ['ID', 'Name', 'Email', 'Phone', 'Grade', 'Board', 'City', 'Enrollments', 'Status', 'Joined Date'];
+    const headers = [
+      "ID",
+      "Name",
+      "Email",
+      "Phone",
+      "Grade",
+      "Board",
+      "City",
+      "Enrollments",
+      "Status",
+      "Joined Date",
+    ];
     const rows = filteredStudents.map((s) => [
       s.id,
       `"${s.name}"`,
@@ -202,16 +258,24 @@ export function StudentsList() {
       s.joinedDate,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `tutoron_students_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `tutoron_students_export_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    toast.success('Students Exported', `Exported ${filteredStudents.length} student records as CSV.`);
+    toast.success(
+      "Students Exported",
+      `Exported ${filteredStudents.length} student records as CSV.`,
+    );
   };
 
   return (
@@ -222,7 +286,7 @@ export function StudentsList() {
         subtitle="Manage and review registered students."
         badge={
           <Badge variant="navy" size="sm">
-            {summaryMetrics.total.toLocaleString('en-IN')} Total Learners
+            {summaryMetrics.total.toLocaleString("en-IN")} Total Learners
           </Badge>
         }
         actions={
@@ -255,7 +319,7 @@ export function StudentsList() {
               Total Students
             </span>
             <p className="text-xl font-bold font-geist text-slate-900 mt-0.5">
-              8,452
+              {summaryMetrics.total.toLocaleString("en-IN")}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-[#123B66]/10 text-[#123B66]">
@@ -269,7 +333,7 @@ export function StudentsList() {
               Active Learners
             </span>
             <p className="text-xl font-bold font-geist text-emerald-700 mt-0.5">
-              7,890
+              {summaryMetrics.active.toLocaleString("en-IN")}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600">
@@ -277,27 +341,13 @@ export function StudentsList() {
           </div>
         </div>
 
-        {/* <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Pending Verification
-            </span>
-            <p className="text-xl font-bold font-geist text-amber-700 mt-0.5">
-              342
-            </p>
-          </div>
-          <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600">
-            <FiClock className="w-4 h-4" />
-          </div>
-        </div> */}
-
         <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               Inactive Accounts
             </span>
             <p className="text-xl font-bold font-geist text-slate-600 mt-0.5">
-              220
+              {summaryMetrics.inactive.toLocaleString("en-IN")}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-100 text-slate-600">
@@ -340,7 +390,7 @@ export function StudentsList() {
               setSearchTerm(val);
               setCurrentPage(1);
             }}
-            onClear={() => setSearchTerm('')}
+            onClear={() => setSearchTerm("")}
             placeholder="Search student, ID, email, phone..."
             size="sm"
           />
@@ -389,11 +439,17 @@ export function StudentsList() {
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="py-3 px-4 whitespace-nowrap">Student & ID</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Contact Details</th>
+                  <th className="py-3 px-4 whitespace-nowrap">
+                    Contact Details
+                  </th>
                   <th className="py-3 px-4 whitespace-nowrap">Joined</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Enrollments</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">
+                    Enrollments
+                  </th>
                   <th className="py-3 px-4 whitespace-nowrap">Status</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Action</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -415,7 +471,9 @@ export function StudentsList() {
                             <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
                               {student.id}
                             </span>
-                            <span>{student.grade} · {student.board}</span>
+                            <span>
+                              {student.grade} · {student.board}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -445,11 +503,12 @@ export function StudentsList() {
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${
                           student.enrollmentsCount > 0
-                            ? 'bg-blue-50 text-[#123B66] border border-blue-100 font-semibold'
-                            : 'bg-slate-100 text-slate-500'
+                            ? "bg-blue-50 text-[#123B66] border border-blue-100 font-semibold"
+                            : "bg-slate-100 text-slate-500"
                         }`}
                       >
-                        {student.enrollmentsCount} {student.enrollmentsCount === 1 ? 'Batch' : 'Batches'}
+                        {student.enrollmentsCount}{" "}
+                        {student.enrollmentsCount === 1 ? "Batch" : "Batches"}
                       </span>
                     </td>
 
@@ -488,14 +547,24 @@ export function StudentsList() {
                           }
                           items={[
                             {
-                              label: 'View Dossier',
+                              label: "View Dossier",
                               icon: <FiEye />,
-                              onClick: () => navigate(`/students/${student.id}`),
+                              onClick: () =>
+                                navigate(`/students/${student.id}`),
                             },
                             {
-                              label: student.status === 'Active' ? 'Mark Inactive' : 'Mark Active',
-                              icon: student.status === 'Active' ? <FiXCircle className="text-amber-600" /> : <FiCheckCircle className="text-emerald-600" />,
-                              onClick: () => handleStatusToggle(student.id, student.status),
+                              label:
+                                student.status === "Active"
+                                  ? "Mark Inactive"
+                                  : "Mark Active",
+                              icon:
+                                student.status === "Active" ? (
+                                  <FiXCircle className="text-amber-600" />
+                                ) : (
+                                  <FiCheckCircle className="text-emerald-600" />
+                                ),
+                              onClick: () =>
+                                handleStatusToggle(student.id, student.status),
                             },
                           ]}
                         />
@@ -511,7 +580,11 @@ export function StudentsList() {
             title="No students match criteria"
             description="We couldn't find any registered students matching your current search and filter parameters."
             action={
-              <Button variant="secondary" size="sm" onClick={handleResetFilters}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleResetFilters}
+              >
                 Clear All Filters
               </Button>
             }
@@ -561,7 +634,9 @@ export function StudentsList() {
               required
               placeholder="e.g. Vikramaditya Rao"
               value={newStudent.name}
-              onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, name: e.target.value })
+              }
             />
             <Input
               label="Student Email Address"
@@ -569,7 +644,9 @@ export function StudentsList() {
               required
               placeholder="e.g. vikram.rao@gmail.com"
               value={newStudent.email}
-              onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, email: e.target.value })
+              }
             />
           </div>
 
@@ -579,12 +656,16 @@ export function StudentsList() {
               required
               placeholder="+91 98765 43210"
               value={newStudent.phone}
-              onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, phone: e.target.value })
+              }
             />
             <Select
               label="Class / Target Batch"
               value={newStudent.grade}
-              onChange={(e) => setNewStudent({ ...newStudent, grade: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, grade: e.target.value })
+              }
             >
               <option value="Class XII (PCM)">Class XII (PCM)</option>
               <option value="Class XII (PCB)">Class XII (PCB)</option>
@@ -601,7 +682,9 @@ export function StudentsList() {
             <Select
               label="Affiliated Board"
               value={newStudent.board}
-              onChange={(e) => setNewStudent({ ...newStudent, board: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, board: e.target.value })
+              }
             >
               <option value="CBSE">CBSE</option>
               <option value="ICSE">ICSE</option>
@@ -612,13 +695,17 @@ export function StudentsList() {
               label="City"
               placeholder="e.g. Hyderabad"
               value={newStudent.city}
-              onChange={(e) => setNewStudent({ ...newStudent, city: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, city: e.target.value })
+              }
             />
             <Input
               label="State"
               placeholder="e.g. Telangana"
               value={newStudent.state}
-              onChange={(e) => setNewStudent({ ...newStudent, state: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, state: e.target.value })
+              }
             />
           </div>
 
@@ -626,7 +713,9 @@ export function StudentsList() {
             label="School / College Institution"
             placeholder="e.g. Chaitanya Junior Kalasala"
             value={newStudent.school}
-            onChange={(e) => setNewStudent({ ...newStudent, school: e.target.value })}
+            onChange={(e) =>
+              setNewStudent({ ...newStudent, school: e.target.value })
+            }
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
@@ -634,13 +723,17 @@ export function StudentsList() {
               label="Parent / Guardian Name"
               placeholder="e.g. Venkateswara Rao"
               value={newStudent.guardianName}
-              onChange={(e) => setNewStudent({ ...newStudent, guardianName: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, guardianName: e.target.value })
+              }
             />
             <Input
               label="Guardian Phone"
               placeholder="+91 98765 00000"
               value={newStudent.guardianPhone}
-              onChange={(e) => setNewStudent({ ...newStudent, guardianPhone: e.target.value })}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, guardianPhone: e.target.value })
+              }
             />
           </div>
         </form>

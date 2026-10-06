@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiSend,
   FiAlertTriangle,
@@ -22,13 +23,31 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_TEACHER_ANNOUNCEMENTS } from '../../data/teacherAnnouncements';
+import { fetchAnnouncements } from '../../store/slices/announcementsSlice';
 
 export function TeacherAnnouncements() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
+
+  const { announcements: reduxAnnouncements, isLoading } = useSelector((state) => state.announcements);
 
   const tableRef = useRef(null);
   const [announcements, setAnnouncements] = useState(INITIAL_TEACHER_ANNOUNCEMENTS);
+
+  useEffect(() => {
+    dispatch(fetchAnnouncements());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxAnnouncements && reduxAnnouncements.length > 0) {
+      // Map server announcements or merge
+      const teacherOnly = reduxAnnouncements.filter((a) => a.teacher || a.targetAudience === 'BATCH' || a.batch);
+      if (teacherOnly.length > 0) {
+        setAnnouncements(teacherOnly);
+      }
+    }
+  }, [reduxAnnouncements]);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');

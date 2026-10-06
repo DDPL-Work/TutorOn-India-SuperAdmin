@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiPlus,
   FiEye,
@@ -16,14 +17,31 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_BANNERS } from '../../data/banners';
+import { fetchBanners, createBanner } from '../../store/slices/announcementsSlice';
 
 export function BannersList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const tableRef = useRef(null);
+  const reduxBanners = useSelector((state) => state.announcements.banners);
   const [banners, setBanners] = useState(INITIAL_BANNERS);
   const [selectedBanner, setSelectedBanner] = useState(INITIAL_BANNERS[0]);
+
+  useEffect(() => {
+    dispatch(fetchBanners());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxBanners && reduxBanners.length > 0) {
+      setBanners(reduxBanners);
+      if (!selectedBanner || !reduxBanners.find(b => b.id === selectedBanner.id)) {
+        setSelectedBanner(reduxBanners[0]);
+      }
+    }
+  }, [reduxBanners]);
+
 
   // Create/Edit Modal State
   const [editModal, setEditModal] = useState({

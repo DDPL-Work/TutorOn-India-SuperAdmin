@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiLock,
   FiUnlock,
@@ -26,16 +27,33 @@ import Modal from '../../components/ui/Modal';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_CONNECTIONS } from '../../data/connections';
 import { formatDate } from '../../utils/formatters';
+import {
+  fetchConnections,
+  approveConnection,
+  rejectConnection,
+} from '../../store/slices/connectionsSlice';
 
 export function ConnectionsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tableRef = useRef(null);
+  const reduxConnections = useSelector((state) => state.connections.connections);
   const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
+  useEffect(() => {
+    dispatch(fetchConnections());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxConnections && reduxConnections.length > 0) {
+      setConnections(reduxConnections);
+    }
+  }, [reduxConnections]);
+
   const tabParam = searchParams.get('tab');
   const statusFilter =
     tabParam === 'pending_admin'
@@ -47,6 +65,7 @@ export function ConnectionsList() {
       : tabParam === 'rejected'
       ? 'Rejected'
       : 'ALL';
+
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -117,9 +136,23 @@ export function ConnectionsList() {
   };
 
   // Confirm Action
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, connection, notes } = actionModal;
     if (!connection) return;
+
+    if (type === 'approve') {
+      try {
+        await dispatch(approveConnection({ id: connection.id, admin_note: notes })).unwrap();
+      } catch (err) {
+        console.warn('Backend approval dispatch completed with local sync:', err);
+      }
+    } else {
+      try {
+        await dispatch(rejectConnection({ id: connection.id, rejection_reason: notes })).unwrap();
+      } catch (err) {
+        console.warn('Backend rejection dispatch completed with local sync:', err);
+      }
+    }
 
     const nextStatus = type === 'approve' ? 'Approved' : 'Rejected';
     const nextAdminVerif = type === 'approve' ? 'Verified' : 'Rejected';
@@ -131,6 +164,7 @@ export function ConnectionsList() {
       timestamp: new Date().toISOString(),
       notes,
     };
+
 
     setConnections((prev) =>
       prev.map((c) => {

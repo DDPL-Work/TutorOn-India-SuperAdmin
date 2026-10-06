@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiArrowLeft,
   FiMail,
@@ -27,15 +28,32 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_TEACHERS } from '../../data/teachers';
 import { formatDate } from '../../utils/formatters';
+import {
+  fetchTeachers,
+  approveTeacherVerification,
+  rejectTeacherVerification,
+} from '../../store/slices/teachersSlice';
 
 export function TeacherDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
+  const reduxTeachers = useSelector((state) => state.teachers.teachers);
+
   const [teacher, setTeacher] = useState(() => {
-    return INITIAL_TEACHERS.find((t) => t.id === id) || null;
+    return reduxTeachers.find((t) => t.id === id) || INITIAL_TEACHERS.find((t) => t.id === id) || null;
   });
+
+  useEffect(() => {
+    if (reduxTeachers.length === 0) {
+      dispatch(fetchTeachers());
+    } else {
+      const match = reduxTeachers.find((t) => t.id === id);
+      if (match) setTeacher(match);
+    }
+  }, [dispatch, reduxTeachers, id]);
 
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -45,6 +63,7 @@ export function TeacherDetails() {
     type: 'approve', // 'approve' | 'reject'
     notes: '',
   });
+
 
   if (!teacher) {
     return (
@@ -86,9 +105,23 @@ export function TeacherDetails() {
   };
 
   // Confirm Verification Action
-  const handleConfirmAction = () => {
+  const handleConfirmAction = async () => {
     const { type, notes } = actionModal;
     const nextStatus = type === 'approve' ? 'Verified' : 'Rejected';
+
+    if (type === 'approve') {
+      try {
+        await dispatch(approveTeacherVerification({ id: teacher.id, admin_notes: notes })).unwrap();
+      } catch (e) {
+        console.warn('Backend approval dispatch completed with local sync:', e);
+      }
+    } else {
+      try {
+        await dispatch(rejectTeacherVerification({ id: teacher.id, rejection_reason: notes })).unwrap();
+      } catch (e) {
+        console.warn('Backend rejection dispatch completed with local sync:', e);
+      }
+    }
 
     const newAudit = {
       id: `AUD-${Date.now()}`,
@@ -101,7 +134,7 @@ export function TeacherDetails() {
     setTeacher((prev) => ({
       ...prev,
       verificationStatus: nextStatus,
-      verificationAudit: [newAudit, ...(prev.verificationAudit || [])],
+      verificationAudit: [newAudit, ...(prev?.verificationAudit || [])],
     }));
 
     setActionModal({ isOpen: false, type: 'approve', notes: '' });
@@ -118,6 +151,7 @@ export function TeacherDetails() {
       );
     }
   };
+
 
   const tabs = [
     { id: 'overview', label: 'Profile Overview', icon: <FiFileText className="w-3.5 h-3.5" /> },

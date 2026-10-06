@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiCheckCircle,
   FiEye,
@@ -24,16 +25,30 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_ENROLLMENTS } from '../../data/enrollments';
+import { fetchEnrollments, fetchBatches } from '../../store/slices/enrollmentsSlice';
 
 export function EnrollmentsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
 
   const tableRef = useRef(null);
+  const reduxEnrollments = useSelector((state) => state.enrollments.enrollments);
   const [enrollments, setEnrollments] = useState(INITIAL_ENROLLMENTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
+
+  useEffect(() => {
+    dispatch(fetchEnrollments());
+    dispatch(fetchBatches());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxEnrollments && reduxEnrollments.length > 0) {
+      setEnrollments(reduxEnrollments);
+    }
+  }, [reduxEnrollments]);
 
   // Derive active tab from URL query param (?tab=awaiting_confirmation) or fallback to 'all'
   const tabParam = searchParams.get('tab');
@@ -53,6 +68,7 @@ export function EnrollmentsList() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
 
   // Tab definitions
   const tabs = [

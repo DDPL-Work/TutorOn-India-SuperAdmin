@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiFileText,
   FiDownload,
@@ -34,16 +35,30 @@ import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../hooks/useToast';
 import { INITIAL_MATERIALS } from '../../data/materials';
+import { fetchMaterials, updateMaterialStatus } from '../../store/slices/materialsSlice';
 
 export function StudyMaterials() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const toast = useToast();
 
   const tableRef = useRef(null);
+  const reduxMaterials = useSelector((state) => state.materials.materials);
   const [materials, setMaterials] = useState(INITIAL_MATERIALS);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [fileTypeFilter, setFileTypeFilter] = useState('ALL');
+
+  useEffect(() => {
+    dispatch(fetchMaterials());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxMaterials && reduxMaterials.length > 0) {
+      setMaterials(reduxMaterials);
+    }
+  }, [reduxMaterials]);
+
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -376,8 +391,19 @@ export function StudyMaterials() {
   }, [filteredMaterials, currentPage, pageSize]);
 
   // Actions
-  const handleToggleVisibility = (material) => {
+  const handleToggleVisibility = async (material) => {
     const newStatus = material.status === 'Hidden' ? 'Published' : 'Hidden';
+    try {
+      if (material.originalId || material.id) {
+        await dispatch(updateMaterialStatus({
+          id: material.originalId || material.id,
+          status: newStatus,
+        })).unwrap();
+      }
+    } catch (err) {
+      console.warn('Backend material update dispatch:', err);
+    }
+
     const updated = materials.map((m) => {
       if (m.id === material.id) {
         return {
@@ -408,6 +434,7 @@ export function StudyMaterials() {
       toast.info('Material Hidden', `"${material.title}" is hidden from student view.`);
     }
   };
+
 
   const handleResolveReport = (material) => {
     const updated = materials.map((m) => {

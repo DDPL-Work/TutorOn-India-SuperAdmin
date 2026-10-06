@@ -1,13 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { AuthContext } from './auth-context';
-import { AUTH_STORAGE_KEY, DEFAULT_SUPER_ADMIN, DEMO_CREDENTIALS } from '../data/mockAuth';
+import { loginAdmin, logout as logoutAction, setUser } from '../store/slices/authSlice';
+import { AUTH_STORAGE_KEY } from '../data/mockAuth';
+import { clearAuthTokens } from '../services/api';
 
 export { AuthContext };
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
+  const dispatch = useDispatch();
+  const reduxUser = useSelector((state) => state.auth.user);
+  const reduxLoading = useSelector((state) => state.auth.isLoading);
+
+  const [user, setLocalUser] = useState(() => {
     try {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY) || sessionStorage.getItem(AUTH_STORAGE_KEY);
       if (stored) {
         return JSON.parse(stored);
       }
@@ -18,7 +25,11 @@ export function AuthProvider({ children }) {
     return null;
   });
 
-  const [isLoading] = useState(false);
+  useEffect(() => {
+    if (reduxUser) {
+      setLocalUser(reduxUser);
+    }
+  }, [reduxUser]);
 
   const login = async (email, password, rememberMe = true) => {
     if (!email || !password) {
@@ -30,40 +41,27 @@ export function AuthProvider({ children }) {
       throw new Error('Please enter a valid administrative email address.');
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const isDemoEmail = normalizedEmail === DEMO_CREDENTIALS.email.toLowerCase();
-
-    if (isDemoEmail && password !== DEMO_CREDENTIALS.password) {
-      throw new Error('Invalid Super Admin credentials. Please check your password.');
-    }
-
-    const authPayload = {
-      ...DEFAULT_SUPER_ADMIN,
-      email: normalizedEmail,
-      name: isDemoEmail ? DEFAULT_SUPER_ADMIN.name : 'Super Admin',
-      loggedInAt: new Date().toISOString(),
-    };
-
-    if (rememberMe) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
+    const resultAction = await dispatch(loginAdmin({ email: email.trim(), password, rememberMe }));
+    if (loginAdmin.fulfilled.match(resultAction)) {
+      setLocalUser(resultAction.payload.user);
+      return resultAction.payload.user;
     } else {
-      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
+      throw new Error(resultAction.payload || 'Authentication failed. Please verify credentials.');
     }
-
-    setUser(authPayload);
-    return authPayload;
   };
 
   const logout = () => {
+    clearAuthTokens();
     localStorage.removeItem(AUTH_STORAGE_KEY);
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    setUser(null);
+    dispatch(logoutAction());
+    setLocalUser(null);
   };
 
   const value = {
-    user,
-    isAuthenticated: Boolean(user),
-    isLoading,
+    user: user || reduxUser,
+    isAuthenticated: Boolean(user || reduxUser),
+    isLoading: reduxLoading,
     login,
     logout,
   };
@@ -72,3 +70,4 @@ export function AuthProvider({ children }) {
 }
 
 export default AuthProvider;
+

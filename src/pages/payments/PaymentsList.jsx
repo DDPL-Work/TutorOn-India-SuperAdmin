@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiCreditCard,
   FiCheckCircle,
@@ -19,15 +20,29 @@ import SearchBar from '../../components/ui/SearchBar';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import { INITIAL_PAYMENTS } from '../../data/payments';
+import { fetchPayments } from '../../store/slices/paymentsSlice';
 
 export function PaymentsList() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const tableRef = useRef(null);
-  const [payments] = useState(INITIAL_PAYMENTS);
+  const reduxPayments = useSelector((state) => state.payments.payments);
+  const [payments, setPayments] = useState(INITIAL_PAYMENTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  useEffect(() => {
+    dispatch(fetchPayments());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (reduxPayments && reduxPayments.length > 0) {
+      setPayments(reduxPayments);
+    }
+  }, [reduxPayments]);
+
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);

@@ -2,7 +2,7 @@ export const BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 export const getAuthToken = () => {
   const keys = ['tutoron_super_admin_auth', 'tutoron_admin_auth'];
-  const storages = [localStorage, sessionStorage];
+  const storages = [sessionStorage];
 
   for (const key of keys) {
     for (const storage of storages) {

@@ -9,7 +9,7 @@ export { AuthContext };
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY) || sessionStorage.getItem(AUTH_STORAGE_KEY);
+      const stored = sessionStorage.getItem(AUTH_STORAGE_KEY) || sessionStorage.getItem(AUTH_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.user) {
@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
       }
     } catch (e) {
       console.error('Failed to restore auth session:', e);
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+      // localStorage.removeItem(AUTH_STORAGE_KEY);
       sessionStorage.removeItem(AUTH_STORAGE_KEY);
     }
     return null;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
       if (data.success && data.data) {
         const authPayload = data.data; // { access, refresh, user }
         if (rememberMe) {
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
+          sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
         } else {
           sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authPayload));
         }
@@ -65,7 +65,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    // localStorage.removeItem(AUTH_STORAGE_KEY);
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
     setUser(null);
   };
